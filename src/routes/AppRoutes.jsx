@@ -34,6 +34,7 @@ const StaffManagement = lazy(() => import("@/pages/StaffManagement").then((modul
 const Subscription = lazy(() => import("@/pages/Subscription").then((module) => ({ default: module.Subscription })));
 const SuperAdminBusinesses = lazy(() => import("@/pages/SuperAdminBusinesses").then((module) => ({ default: module.SuperAdminBusinesses })));
 const SuperAdminBusinessDetails = lazy(() => import("@/pages/SuperAdminBusinesses").then((module) => ({ default: module.SuperAdminBusinessDetails })));
+const SuperAdminDashboard = lazy(() => import("@/pages/SuperAdminDashboard").then((module) => ({ default: module.SuperAdminDashboard })));
 const SuperAdminContacts = lazy(() => import("@/pages/SuperAdminContacts").then((module) => ({ default: module.SuperAdminContacts })));
 const Vendors = lazy(() => import("@/pages/Vendors").then((module) => ({ default: module.Vendors })));
 const NotFoundPage = lazy(() => import("@/pages/ErrorPages").then((module) => ({ default: module.NotFoundPage })));
@@ -119,6 +120,7 @@ export function AppRoutes() {
             <Route path="/repair/:id" element={<RequireRole roles={operator}><RepairDetailsRoute /></RequireRole>} />
             <Route path="/staff" element={<RequireRole roles={staffManagers}><StaffManagement /></RequireRole>} />
             <Route path="/subscription" element={<RequireRole roles={ownerOnly}><Subscription /></RequireRole>} />
+            <Route path="/super-admin/dashboard" element={<RequireRole roles={superAdminOnly}><SuperAdminDashboard /></RequireRole>} />
             <Route path="/super-admin/businesses" element={<RequireRole roles={superAdminOnly}><SuperAdminBusinesses /></RequireRole>} />
             <Route path="/super-admin/businesses/:id" element={<RequireRole roles={superAdminOnly}><SuperAdminBusinessDetailsRoute /></RequireRole>} />
             <Route path="/super-admin/contacts" element={<RequireRole roles={superAdminOnly}><SuperAdminContacts /></RequireRole>} />

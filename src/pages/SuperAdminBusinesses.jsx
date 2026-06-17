@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { Building2, GitBranch, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
@@ -86,6 +87,21 @@ export function SuperAdminBusinesses() {
               render: (business) => planLabel(business.subscription),
             },
             {
+              key: "branches",
+              header: "Branches",
+              render: (business) => business.counts?.branches || 0,
+            },
+            {
+              key: "staff",
+              header: "Staff",
+              render: (business) => business.counts?.staff || 0,
+            },
+            {
+              key: "devices",
+              header: "Devices",
+              render: (business) => business.counts?.tickets || 0,
+            },
+            {
               key: "status",
               header: "Status",
               render: (business) => <StatusBadge status={business.status} />,
@@ -103,7 +119,7 @@ export function SuperAdminBusinesses() {
                 return (
                   <div className="flex flex-wrap gap-2">
                     <ActionLink to={`/super-admin/businesses/${business.id}`}>
-                      View
+                      Owner Details
                     </ActionLink>
                     <Button
                       size="sm"
@@ -174,6 +190,26 @@ export function SuperAdminBusinessDetails({ id }) {
         onRetry={businessQuery.refetch}
       >
         <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-3">
+            <SummaryTile
+              label="Branches"
+              value={business?.counts?.branches || business?.branches?.length || 0}
+              detail="Owner-created shop locations"
+              icon={<GitBranch className="h-4 w-4" />}
+            />
+            <SummaryTile
+              label="Staff Accounts"
+              value={business?.counts?.staff || 0}
+              detail="Owner, admins, and technicians"
+              icon={<Users className="h-4 w-4" />}
+            />
+            <SummaryTile
+              label="Repair Devices"
+              value={business?.counts?.tickets || 0}
+              detail="Used for Starter 50-device trial"
+              icon={<Building2 className="h-4 w-4" />}
+            />
+          </div>
           <Card>
             <CardHeader>
               <CardTitle>{business?.name}</CardTitle>
@@ -195,6 +231,8 @@ export function SuperAdminBusinessDetails({ id }) {
               />
             </CardContent>
           </Card>
+          <OwnerDetails business={business} />
+          <BranchStaffDetails branches={business?.branches || []} />
           <SubscriptionAdminForm
             business={business}
             isSaving={subscriptionMutation.isPending}
@@ -202,6 +240,123 @@ export function SuperAdminBusinessDetails({ id }) {
           />
         </div>
       </QueryState>
+    </div>
+  );
+}
+
+function SummaryTile({ label, value, detail, icon }) {
+  return (
+    <Card>
+      <CardContent className="flex items-start justify-between">
+        <div>
+          <p className="text-sm text-[var(--muted)]">{label}</p>
+          <p className="mt-2 text-2xl font-bold">{value}</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">{detail}</p>
+        </div>
+        <div className="rounded-md bg-blue-50 p-2 text-[var(--primary)]">{icon}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OwnerDetails({ business }) {
+  const owner = business?.owner;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Owner Details</CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Info label="Owner name" value={owner?.fullName || "Not assigned"} />
+        <Info label="Owner email" value={owner?.email || "Not set"} />
+        <Info label="Owner mobile" value={owner?.phone || business?.phone || "Not set"} />
+        <Info label="Owner account" value={<StatusBadge status={owner?.isActive ? "ACTIVE" : "INACTIVE"} />} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function BranchStaffDetails({ branches }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Branch, Admin & Staff Details</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {branches.length ? (
+          branches.map((branch) => (
+            <div key={branch.id} className="rounded-md border border-[var(--border)] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold">{branch.name}</p>
+                    {branch.isMainBranch ? (
+                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                        Main branch
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    {branch.code} · {branch.address || "Address not set"}
+                  </p>
+                </div>
+                <StatusBadge status={branch.status} />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-4">
+                <MiniMetric label="Admins" value={branch.staffCounts?.admins || 0} />
+                <MiniMetric label="Technicians" value={branch.staffCounts?.technicians || 0} />
+                <MiniMetric label="Active staff" value={branch.staffCounts?.active || 0} />
+                <MiniMetric label="Devices" value={branch._count?.tickets || 0} />
+              </div>
+              <div className="mt-4 overflow-hidden rounded-md border border-[var(--border)]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-xs uppercase text-[var(--muted)]">
+                    <tr>
+                      <th className="px-3 py-2">Name</th>
+                      <th className="px-3 py-2">Role</th>
+                      <th className="px-3 py-2">Email</th>
+                      <th className="px-3 py-2">Mobile</th>
+                      <th className="px-3 py-2">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branch.staff?.length ? (
+                      branch.staff.map((member) => (
+                        <tr key={member.id} className="border-t border-[var(--border)]">
+                          <td className="px-3 py-2 font-medium">{member.fullName}</td>
+                          <td className="px-3 py-2">{member.role}</td>
+                          <td className="px-3 py-2">{member.email}</td>
+                          <td className="px-3 py-2">{member.phone || "Not set"}</td>
+                          <td className="px-3 py-2">
+                            <StatusBadge status={member.isActive ? "ACTIVE" : "INACTIVE"} />
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td className="px-3 py-3 text-[var(--muted)]" colSpan={5}>
+                          No staff assigned to this branch.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="text-sm text-[var(--muted)]">No branches created yet.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function MiniMetric({ label, value }) {
+  return (
+    <div className="rounded-md border border-[var(--border)] bg-slate-50 p-3">
+      <p className="text-xs font-semibold uppercase text-[var(--muted)]">{label}</p>
+      <p className="mt-1 text-lg font-bold">{value}</p>
     </div>
   );
 }

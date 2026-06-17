@@ -12,6 +12,7 @@ export function AppLayout() {
   const [open, setOpen] = useState(false);
   const { user, logout, hasRole } = useAuth();
   const { allBranchesValue, branches, selectedBranchId, setSelectedBranchId } = useBranch();
+  const isSuperAdmin = hasRole("SUPER_ADMIN");
 
   const activeBranch = useMemo(() => {
     if (hasRole("ADMIN") || hasRole("TECHNICIAN")) {
@@ -23,9 +24,13 @@ export function AppLayout() {
     return branches.find((b) => b.isMainBranch) || branches[0];
   }, [user, branches, selectedBranchId, allBranchesValue, hasRole]);
 
-  const brandLogo = activeBranch?.metadata?.logo || "";
-  const brandTitle = activeBranch?.metadata?.title || activeBranch?.name || "Repair ERP";
-  const brandSlogan = activeBranch?.metadata?.slogan || activeBranch?.code || "Backend modules as navigation";
+  const brandLogo = isSuperAdmin ? "" : activeBranch?.metadata?.logo || "";
+  const brandTitle = isSuperAdmin
+    ? "Repair ERP Platform"
+    : activeBranch?.metadata?.title || activeBranch?.name || "Repair ERP";
+  const brandSlogan = isSuperAdmin
+    ? "SaaS control center"
+    : activeBranch?.metadata?.slogan || activeBranch?.code || "Backend modules as navigation";
 
   const visibleNavigation = useMemo(() => {
     return navigation
@@ -53,12 +58,15 @@ export function AppLayout() {
       ) : null}
 
       <aside className={cn("fixed inset-y-0 left-0 z-30 flex w-72 flex-col border-r border-[var(--border)] bg-white transition-transform lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
-        <Link to="/branch/portal" className="flex h-16 items-center gap-3 border-b border-[var(--border)] px-5">
+        <Link
+          to={isSuperAdmin ? "/super-admin/dashboard" : "/branch/portal"}
+          className="flex h-16 items-center gap-3 border-b border-[var(--border)] px-5"
+        >
           {brandLogo ? (
             <img src={brandLogo} alt="Logo" className="h-8 w-8 rounded-lg object-contain bg-slate-50 p-0.5 border border-slate-100 shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
           ) : (
             <div className="h-8 w-8 rounded-lg bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] grid place-items-center text-white text-[10px] font-black shrink-0 shadow-inner">
-              {brandTitle.substring(0, 2).toUpperCase()}
+              {isSuperAdmin ? "SA" : brandTitle.substring(0, 2).toUpperCase()}
             </div>
           )}
           <div className="min-w-0">
@@ -118,7 +126,9 @@ export function AppLayout() {
               <Menu className="h-4 w-4" />
             </Button>
             <div>
-              <p className="text-sm font-semibold">{user?.business?.name || "Repair Business"}</p>
+              <p className="text-sm font-semibold">
+                {isSuperAdmin ? "Repair ERP Platform" : user?.business?.name || "Repair Business"}
+              </p>
               <p className="text-xs text-[var(--muted)]">{user?.fullName} · {user?.role}</p>
             </div>
           </div>

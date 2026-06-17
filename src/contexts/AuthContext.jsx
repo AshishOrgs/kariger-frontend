@@ -67,7 +67,7 @@ export function AuthProvider({ children }) {
       const serviceActive = isServiceActive(response.data.user);
       navigate(
         role === "SUPER_ADMIN"
-          ? "/super-admin/businesses"
+          ? "/super-admin/dashboard"
           : role === "OWNER" && !serviceActive
           ? "/subscription"
           : ["OWNER", "ADMIN"].includes(role)

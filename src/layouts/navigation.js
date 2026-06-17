@@ -12,6 +12,7 @@ import {
   ListTodo,
   Mail,
   ShieldCheck,
+  SquareActivity,
   Users,
   UserRoundCog,
   Wrench,
@@ -40,6 +41,7 @@ export const navigation = [
   { label: "Business Profile", path: "/business", icon: Building2, roles: owner },
   { label: "Staff", path: "/staff", icon: UserRoundCog, roles: staffManagers },
   { label: "Subscription", path: "/subscription", icon: CreditCard, roles: owner },
+  { label: "Platform Dashboard", path: "/super-admin/dashboard", icon: SquareActivity, roles: ["SUPER_ADMIN"] },
   { label: "Businesses", path: "/super-admin/businesses", icon: Landmark, roles: ["SUPER_ADMIN"] },
   { label: "Inquiries", path: "/super-admin/contacts", icon: Mail, roles: ["SUPER_ADMIN"] },
 ];

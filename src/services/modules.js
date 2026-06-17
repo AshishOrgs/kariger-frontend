@@ -104,6 +104,7 @@ export const subscriptionApi = {
 };
 
 export const superAdminApi = {
+  dashboard: () => get("/super-admin/dashboard"),
   businesses: (params) => get("/super-admin/businesses", params),
   business: (id) => get(`/super-admin/businesses/${id}`),
   suspend: (id) => patch(`/super-admin/businesses/${id}/suspend`),

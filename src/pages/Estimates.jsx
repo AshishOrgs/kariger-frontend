@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { Timeline } from "@/components/ui/Timeline";
 import { repairApi } from "@/services/modules";
-import { formatCurrency, unwrapArray } from "@/utils/cn";
+import { cn, formatCurrency, unwrapArray } from "@/utils/cn";
 import { firstObject } from "@/utils/data";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
 import { ticketLabel } from "@/utils/ticketLabel";
@@ -23,7 +23,18 @@ export function Estimates() {
   const [lastApprovedTicketId, setLastApprovedTicketId] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["repair", "estimate-candidates"], queryFn: () => repairApi.list({ limit: 100 }) });
   const estimateStatuses = ["DIAGNOSING", "ESTIMATE_PENDING", "WAITING_APPROVAL"];
-  const tickets = unwrapArray(data, ["tickets"]).filter((ticket) => estimateStatuses.includes(ticket.status));
+  const allTickets = unwrapArray(data, ["tickets"]);
+  const tickets = allTickets.filter((ticket) => estimateStatuses.includes(ticket.status));
+  const estimateHistory = allTickets
+    .flatMap((ticket) => {
+      const estimates = ticket.estimates?.length
+        ? ticket.estimates
+        : ticket.latestEstimate
+        ? [ticket.latestEstimate]
+        : [];
+      return estimates.map((estimate) => ({ ...estimate, ticket }));
+    })
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
   const createCandidates = tickets.filter((ticket) => ["DIAGNOSING", "ESTIMATE_PENDING"].includes(ticket.status));
   const activeTicketId = createCandidates.some((ticket) => ticket.id === selectedTicketId) ? selectedTicketId : createCandidates[0]?.id || "";
   const mutation = useNotifyMutation({
@@ -41,7 +52,10 @@ export function Estimates() {
       await queryClient.invalidateQueries({ queryKey: ["repair"] });
     },
   });
-  const createdEstimateApproved = approveCreatedEstimate.data?.data?.estimate?.status === "APPROVED";
+  const visibleCreatedEstimate = approveCreatedEstimate.data?.data?.estimate || createdEstimate;
+  const visibleCreatedEstimateStatus = visibleCreatedEstimate?.status || createdEstimate?.status;
+  const canApproveCreatedEstimate = ["PENDING", "DRAFT", "SENT"].includes(visibleCreatedEstimateStatus);
+  const createdEstimateApproved = visibleCreatedEstimateStatus === "APPROVED";
   const approveWaitingEstimate = useNotifyMutation({
     mutationFn: ({ estimateId, payload }) => repairApi.approveEstimate(estimateId, payload),
     successMessage: "Estimate approved. Ticket is ready for billing.",
@@ -56,54 +70,93 @@ export function Estimates() {
     <>
       <PageHeader title="Repair Estimates" description="Estimate list, details, approval workflow, and estimate history." />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
-        <Card>
-          <CardHeader><CardTitle>Estimate Candidates</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            {tickets.map((ticket) => {
-              const latestEstimate = ticket.latestEstimate || ticket.estimates?.[0] || null;
-              const canApproveWaitingEstimate = ticket.status === "WAITING_APPROVAL" && latestEstimate?.id && ["PENDING", "DRAFT", "SENT"].includes(latestEstimate.status);
+        <div className="space-y-5">
+          <Card>
+            <CardHeader><CardTitle>Estimate Candidates</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {tickets.map((ticket) => {
+                const latestEstimate = ticket.latestEstimate || ticket.estimates?.[0] || null;
+                const canApproveWaitingEstimate = ticket.status === "WAITING_APPROVAL" && latestEstimate?.id && ["PENDING", "DRAFT", "SENT"].includes(latestEstimate.status);
 
-              return (
-              <div key={ticket.id} className="rounded-md border border-[var(--border)] p-3">
-                <div className="flex justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="break-words font-semibold">{ticketLabel(ticket)}</p>
-                    <p className="text-sm text-[var(--muted)]">{ticket.title}</p>
-                    {latestEstimate?.id ? (
-                      <Link className="mt-2 block text-sm text-[var(--primary)]" to={`/repair/estimates/${latestEstimate.id}`}>
-                        {latestEstimate.estimateNumber || "Open estimate"} · {formatCurrency(latestEstimate.totalAmount)}
-                      </Link>
-                    ) : null}
-                    {ticket.status === "WAITING_APPROVAL" && !latestEstimate?.id ? (
-                      <p className="mt-2 text-sm text-amber-700">Estimate created, but this response does not include an estimate id yet.</p>
-                    ) : null}
-                    {canApproveWaitingEstimate ? (
-                      <Button
-                        className="mt-3"
-                        type="button"
-                        disabled={approveWaitingEstimate.isPending}
-                        onClick={() => approveWaitingEstimate.mutate({
-                          estimateId: latestEstimate.id,
-                          ticketId: ticket.id,
-                          payload: { notes: "Approved from estimate workflow list." },
-                        })}
-                      >
-                        {approveWaitingEstimate.isPending ? "Approving..." : "Approve Estimate"}
-                      </Button>
-                    ) : null}
+                return (
+                <div key={ticket.id} className="rounded-md border border-[var(--border)] p-3">
+                  <div className="flex justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words font-semibold">{ticketLabel(ticket)}</p>
+                      <p className="text-sm text-[var(--muted)]">{ticket.title}</p>
+                      {latestEstimate?.id ? (
+                        <Link className="mt-2 block text-sm text-[var(--primary)]" to={`/repair/estimates/${latestEstimate.id}`}>
+                          {latestEstimate.estimateNumber || "Open estimate"} · {formatCurrency(latestEstimate.totalAmount)}
+                        </Link>
+                      ) : null}
+                      {ticket.status === "WAITING_APPROVAL" && !latestEstimate?.id ? (
+                        <p className="mt-2 text-sm text-amber-700">Estimate created, but this response does not include an estimate id yet.</p>
+                      ) : null}
+                      {canApproveWaitingEstimate ? (
+                        <Button
+                          className="mt-3"
+                          type="button"
+                          disabled={approveWaitingEstimate.isPending}
+                          onClick={() => approveWaitingEstimate.mutate({
+                            estimateId: latestEstimate.id,
+                            ticketId: ticket.id,
+                            payload: { notes: "Approved from estimate workflow list." },
+                          })}
+                        >
+                          {approveWaitingEstimate.isPending ? "Approving..." : "Approve Estimate"}
+                        </Button>
+                      ) : null}
+                    </div>
+                    <StatusBadge status={ticket.status} />
                   </div>
-                  <StatusBadge status={ticket.status} />
                 </div>
-              </div>
-              );
-            })}
-            {!tickets.length ? (
-              <p className="text-sm text-[var(--muted)]">
-                {isLoading ? "Loading estimate candidates..." : "No tickets are currently in DIAGNOSING, ESTIMATE_PENDING, or WAITING_APPROVAL."}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
+                );
+              })}
+              {!tickets.length ? (
+                <p className="text-sm text-[var(--muted)]">
+                  {isLoading ? "Loading estimate candidates..." : "No tickets are currently in DIAGNOSING, ESTIMATE_PENDING, or WAITING_APPROVAL."}
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Estimate History</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              {estimateHistory.map((estimate) => {
+                const ticketId = estimate.repairTicketId || estimate.ticketId || estimate.ticket?.id || "";
+                return (
+                  <div key={estimate.id} className="rounded-md border border-[var(--border)] p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="break-words font-semibold">{estimate.ticket ? ticketLabel(estimate.ticket) : "Repair ticket"}</p>
+                        <p className="mt-1 text-sm text-[var(--muted)]">
+                          {estimate.estimateNumber || "Estimate"} · {formatCurrency(estimate.totalAmount)}
+                        </p>
+                      </div>
+                      <StatusBadge status={estimate.status} />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Link to={`/repair/estimates/${estimate.id}`}>
+                        <Button size="sm" variant="secondary" type="button">View Estimate</Button>
+                      </Link>
+                      {estimate.status === "APPROVED" ? (
+                        <Link to={`/repair/parts-usage?ticketId=${ticketId}`}>
+                          <Button size="sm" type="button">Go to Parts Usage</Button>
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {!estimateHistory.length ? (
+                <p className="text-sm text-[var(--muted)]">
+                  No estimates have been created yet. Created and approved estimates will appear here.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+        </div>
         <Card>
           <CardHeader><CardTitle>Create Estimate</CardTitle></CardHeader>
           <CardContent>
@@ -144,21 +197,29 @@ export function Estimates() {
               <Input name="discount" type="number" placeholder="Discount" disabled={!createCandidates.length} />
               <Button className="w-full" disabled={mutation.isPending || createCandidates.length === 0}>Create Estimate</Button>
             </form>
-            {createdEstimate ? (
+            {visibleCreatedEstimate ? (
               <div className="mt-4 space-y-3 rounded-md bg-slate-50 p-3 text-sm">
                 <div>
-                  <StatusBadge status={approveCreatedEstimate.data?.data?.estimate?.status || createdEstimate.status} />
-                  <p className="mt-2 font-semibold">Total: {formatCurrency(createdEstimate.totalAmount)}</p>
-                  <p className="mt-1 text-[var(--muted)]">Next step: approve the estimate, then record actual parts usage.</p>
+                  <StatusBadge status={visibleCreatedEstimateStatus} />
+                  <p className="mt-2 font-semibold">Total: {formatCurrency(visibleCreatedEstimate.totalAmount)}</p>
+                  <p className="mt-1 text-[var(--muted)]">
+                    {createdEstimateApproved
+                      ? "Estimate approved. Next step: record actual parts usage."
+                      : "Next step: approve the estimate, then record actual parts usage."}
+                  </p>
                 </div>
                 {createdEstimateApproved ? (
-                  <Link to={`/repair/parts-usage?ticketId=${lastApprovedTicketId || createdEstimate.repairTicketId || createdEstimate.ticketId || ""}`}>
+                  <Link to={`/repair/parts-usage?ticketId=${lastApprovedTicketId || visibleCreatedEstimate.repairTicketId || visibleCreatedEstimate.ticketId || ""}`}>
                     <Button className="w-full" type="button">Go to Parts Usage</Button>
                   </Link>
-                ) : (
+                ) : canApproveCreatedEstimate ? (
                   <Button className="w-full" type="button" disabled={approveCreatedEstimate.isPending} onClick={() => approveCreatedEstimate.mutate({ notes: "Approved from estimate creation workflow." })}>
                     {approveCreatedEstimate.isPending ? "Approving..." : "Approve Estimate"}
                   </Button>
+                ) : (
+                  <p className="rounded-md bg-white p-3 text-xs text-[var(--muted)]">
+                    This estimate is finalized and cannot be approved again.
+                  </p>
                 )}
               </div>
             ) : null}

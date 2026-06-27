@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { Timeline } from "@/components/ui/Timeline";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
-import { assignmentsApi, repairApi } from "@/services/modules";
+import { assignmentsApi, repairApi, staffApi } from "@/services/modules";
 import { unwrapArray } from "@/utils/cn";
 import { displayValue } from "@/utils/data";
 import { isActiveAssignment, isTerminalTicketStatus } from "@/utils/workflow";
@@ -25,8 +25,18 @@ export function Assignments() {
   const queueQuery = useQuery({ queryKey: ["assignments", "queue"], queryFn: () => assignmentsApi.queue() });
   const dashboardQuery = useQuery({ queryKey: ["assignments", "dashboard"], queryFn: () => assignmentsApi.dashboard() });
   const ticketsQuery = useQuery({ queryKey: ["repair"], queryFn: () => repairApi.list() });
+  const staffQuery = useQuery({ queryKey: ["staff", "assignment-technicians"], queryFn: staffApi.list });
   const queue = unwrapArray(queueQuery.data, ["assignments", "tickets"]);
   const tickets = unwrapArray(ticketsQuery.data, ["tickets"]);
+  const branchTechnicians = (staffQuery.data?.data?.staff || [])
+    .filter((member) => member.role === "TECHNICIAN" && member.isActive)
+    .map((member) => ({
+      id: member.id,
+      name: member.fullName,
+      email: member.email,
+      branchId: member.branchId,
+      branchName: member.branch?.name,
+    }));
   const dashboard = dashboardQuery.data?.data || {};
   const activeTicketId = selectedTicketId || tickets[0]?.id || "";
   const historyQuery = useQuery({
@@ -49,12 +59,15 @@ export function Assignments() {
     ])
   );
   const ticketHasActiveAssignment = (ticket) => (assignmentRecordsByTicket.get(ticket.id) || []).some(isActiveAssignment);
-  const technicians = uniqueTechnicians([
-    ...queue,
-    ...history,
-    ...[...assignmentRecordsByTicket.values()].flat(),
-    ...tickets.flatMap((ticket) => ticket.assignments || []),
-  ]);
+  const technicians = mergeTechnicians(
+    branchTechnicians,
+    uniqueTechnicians([
+      ...queue,
+      ...history,
+      ...[...assignmentRecordsByTicket.values()].flat(),
+      ...tickets.flatMap((ticket) => ticket.assignments || []),
+    ])
+  );
   const assignableTickets = tickets.filter((ticket) => !isTerminalTicketStatus(ticket.status) && !ticketHasActiveAssignment(ticket));
   const reassignableTickets = tickets.filter((ticket) => !isTerminalTicketStatus(ticket.status) && ticketHasActiveAssignment(ticket));
   const mutation = useNotifyMutation({
@@ -199,7 +212,7 @@ function AssignmentForm({ mode, setMode, defaultTicketId, assignableTickets, rea
           <Select name="technicianId" disabled={!technicians.length}>
             {technicians.map((tech) => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
           </Select>
-          {!technicians.length ? <p className="text-xs text-[var(--muted)]">No technician records are available from existing assignment APIs yet.</p> : null}
+          {!technicians.length ? <p className="text-xs text-[var(--muted)]">No active technicians found in this branch. Create or enable a technician first.</p> : null}
           {isReassign ? <Input name="reason" placeholder="Reassignment reason" required /> : null}
           <Textarea name="notes" placeholder="Assignment notes" />
           <Button className="w-full" disabled={pending || !tickets.length || !technicians.length}>{title}</Button>
@@ -216,6 +229,14 @@ function uniqueTechnicians(records) {
     const id = staff?.id || record.assignedToStaffId || record.technicianId;
     const name = staff?.fullName || staff?.name || id;
     if (id) map.set(id, { id, name });
+  }
+  return [...map.values()];
+}
+
+function mergeTechnicians(primary, fallback) {
+  const map = new Map();
+  for (const tech of [...primary, ...fallback]) {
+    if (tech?.id) map.set(tech.id, tech);
   }
   return [...map.values()];
 }

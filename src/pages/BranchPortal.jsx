@@ -162,7 +162,7 @@ export function BranchPortal() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl min-w-0">
+    <div className="mx-auto max-w-6xl min-w-0 pb-24 lg:pb-0">
       
       {/* Header and Controls */}
       <PageHeader
@@ -410,7 +410,7 @@ export function BranchPortal() {
           </Card>
 
           {/* Contact Details Grid */}
-          <div className="mt-6 grid gap-6 sm:grid-cols-3">
+          <div className="mt-6 grid gap-4 pb-4 sm:grid-cols-3 sm:gap-6 sm:pb-0">
             <Card className="border-slate-200 shadow-sm">
               <CardContent className="p-5 flex flex-col justify-between h-full min-h-[140px]">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">

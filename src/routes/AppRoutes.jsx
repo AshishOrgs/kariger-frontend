@@ -15,6 +15,7 @@ const Customers = lazy(() => import("@/pages/Customers").then((module) => ({ def
 const Dashboard = lazy(() => import("@/pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const EstimateDetails = lazy(() => import("@/pages/Estimates").then((module) => ({ default: module.EstimateDetails })));
 const Estimates = lazy(() => import("@/pages/Estimates").then((module) => ({ default: module.Estimates })));
+const Expenses = lazy(() => import("@/pages/Expenses").then((module) => ({ default: module.Expenses })));
 const Handover = lazy(() => import("@/pages/Handover").then((module) => ({ default: module.Handover })));
 const Inventory = lazy(() => import("@/pages/Inventory").then((module) => ({ default: module.Inventory })));
 const InventoryDetails = lazy(() => import("@/pages/Inventory").then((module) => ({ default: module.InventoryDetails })));
@@ -117,6 +118,7 @@ export function AppRoutes() {
             <Route path="/repair/estimates" element={<RequireRole roles={operator}><Estimates /></RequireRole>} />
             <Route path="/repair/estimates/:id" element={<RequireRole roles={operator}><EstimateDetailsRoute /></RequireRole>} />
             <Route path="/repair/parts-usage" element={<RequireRole roles={operator}><PartsUsage /></RequireRole>} />
+            <Route path="/expenses" element={<RequireRole roles={operator}><Expenses /></RequireRole>} />
             <Route path="/repair/:id" element={<RequireRole roles={operator}><RepairDetailsRoute /></RequireRole>} />
             <Route path="/staff" element={<RequireRole roles={staffManagers}><StaffManagement /></RequireRole>} />
             <Route path="/subscription" element={<RequireRole roles={ownerOnly}><Subscription /></RequireRole>} />

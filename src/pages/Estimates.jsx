@@ -3,7 +3,6 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { ConfirmAction } from "@/components/ui/ConfirmAction";
 import { Input, Select, Textarea } from "@/components/ui/Form";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -20,7 +19,6 @@ export function Estimates() {
   const [searchParams] = useSearchParams();
   const preselectedTicketId = searchParams.get("ticketId") || "";
   const [selectedTicketId, setSelectedTicketId] = useState(preselectedTicketId);
-  const [lastApprovedTicketId, setLastApprovedTicketId] = useState("");
   const { data, isLoading } = useQuery({ queryKey: ["repair", "estimate-candidates"], queryFn: () => repairApi.list({ limit: 100 }) });
   const estimateStatuses = ["DIAGNOSING", "ESTIMATE_PENDING", "WAITING_APPROVAL"];
   const allTickets = unwrapArray(data, ["tickets"]);
@@ -39,36 +37,16 @@ export function Estimates() {
   const activeTicketId = createCandidates.some((ticket) => ticket.id === selectedTicketId) ? selectedTicketId : createCandidates[0]?.id || "";
   const mutation = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.createEstimate(ticketId, payload),
-    successMessage: "Estimate created successfully.",
+    successMessage: "Estimate created and marked done.",
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["repair", "estimate-candidates"] }),
   });
   const createdEstimate = mutation.data?.data?.estimate;
-  const approveCreatedEstimate = useNotifyMutation({
-    mutationFn: (payload) => repairApi.approveEstimate(createdEstimate.id, payload),
-    successMessage: "Estimate approved. Ticket is ready for billing.",
-    onSuccess: async () => {
-      setLastApprovedTicketId(createdEstimate.repairTicketId || createdEstimate.ticketId || "");
-      await queryClient.invalidateQueries({ queryKey: ["repair", "estimate-candidates"] });
-      await queryClient.invalidateQueries({ queryKey: ["repair"] });
-    },
-  });
-  const visibleCreatedEstimate = approveCreatedEstimate.data?.data?.estimate || createdEstimate;
+  const visibleCreatedEstimate = createdEstimate;
   const visibleCreatedEstimateStatus = visibleCreatedEstimate?.status || createdEstimate?.status;
-  const canApproveCreatedEstimate = ["PENDING", "DRAFT", "SENT"].includes(visibleCreatedEstimateStatus);
-  const createdEstimateApproved = visibleCreatedEstimateStatus === "APPROVED";
-  const approveWaitingEstimate = useNotifyMutation({
-    mutationFn: ({ estimateId, payload }) => repairApi.approveEstimate(estimateId, payload),
-    successMessage: "Estimate approved. Ticket is ready for billing.",
-    onSuccess: async (_data, variables) => {
-      setLastApprovedTicketId(variables.ticketId || "");
-      await queryClient.invalidateQueries({ queryKey: ["repair", "estimate-candidates"] });
-      await queryClient.invalidateQueries({ queryKey: ["repair"] });
-    },
-  });
 
   return (
     <>
-      <PageHeader title="Repair Estimates" description="Estimate list, details, approval workflow, and estimate history." />
+      <PageHeader title="Repair Estimates" description="Create customer estimates and review estimate history." />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <div className="space-y-5">
           <Card>
@@ -76,7 +54,6 @@ export function Estimates() {
             <CardContent className="space-y-3">
               {tickets.map((ticket) => {
                 const latestEstimate = ticket.latestEstimate || ticket.estimates?.[0] || null;
-                const canApproveWaitingEstimate = ticket.status === "WAITING_APPROVAL" && latestEstimate?.id && ["PENDING", "DRAFT", "SENT"].includes(latestEstimate.status);
 
                 return (
                 <div key={ticket.id} className="rounded-md border border-[var(--border)] p-3">
@@ -91,20 +68,6 @@ export function Estimates() {
                       ) : null}
                       {ticket.status === "WAITING_APPROVAL" && !latestEstimate?.id ? (
                         <p className="mt-2 text-sm text-amber-700">Estimate created, but this response does not include an estimate id yet.</p>
-                      ) : null}
-                      {canApproveWaitingEstimate ? (
-                        <Button
-                          className="mt-3"
-                          type="button"
-                          disabled={approveWaitingEstimate.isPending}
-                          onClick={() => approveWaitingEstimate.mutate({
-                            estimateId: latestEstimate.id,
-                            ticketId: ticket.id,
-                            payload: { notes: "Approved from estimate workflow list." },
-                          })}
-                        >
-                          {approveWaitingEstimate.isPending ? "Approving..." : "Approve Estimate"}
-                        </Button>
                       ) : null}
                     </div>
                     <StatusBadge status={ticket.status} />
@@ -188,7 +151,7 @@ export function Estimates() {
               <Select name="ticketId" disabled={!createCandidates.length} value={activeTicketId} onChange={(event) => setSelectedTicketId(event.target.value)}>
                 {createCandidates.map((ticket) => <option key={ticket.id} value={ticket.id}>{ticketLabel(ticket)}</option>)}
               </Select>
-              {!createCandidates.length ? <p className="text-sm text-[var(--muted)]">No tickets are eligible for estimate creation. Tickets already waiting for approval must be opened from the estimate link and approved or rejected.</p> : null}
+              {!createCandidates.length ? <p className="text-sm text-[var(--muted)]">No tickets are eligible for estimate creation right now. Created estimates appear in history below.</p> : null}
               <Textarea name="repairNote" placeholder="Diagnosis, estimate repair note, and customer note" required disabled={!createCandidates.length} />
               <Input name="estimatedTurnaroundHours" type="number" placeholder="Turnaround hours" disabled={!createCandidates.length} />
               <Input name="laborCost" type="number" placeholder="Labor Cost" disabled={!createCandidates.length} />
@@ -202,31 +165,12 @@ export function Estimates() {
                 <div>
                   <StatusBadge status={visibleCreatedEstimateStatus} />
                   <p className="mt-2 font-semibold">Total: {formatCurrency(visibleCreatedEstimate.totalAmount)}</p>
-                  <p className="mt-1 text-[var(--muted)]">
-                    {createdEstimateApproved
-                      ? "Estimate approved. Next step: record actual parts usage."
-                      : "Next step: approve the estimate, then record actual parts usage."}
-                  </p>
+                  <p className="mt-1 text-[var(--muted)]">Estimate is done. Next step: technician records actual parts usage.</p>
                 </div>
-                {createdEstimateApproved ? (
-                  <Link to={`/repair/parts-usage?ticketId=${lastApprovedTicketId || visibleCreatedEstimate.repairTicketId || visibleCreatedEstimate.ticketId || ""}`}>
-                    <Button className="w-full" type="button">Go to Parts Usage</Button>
-                  </Link>
-                ) : canApproveCreatedEstimate ? (
-                  <Button className="w-full" type="button" disabled={approveCreatedEstimate.isPending} onClick={() => approveCreatedEstimate.mutate({ notes: "Approved from estimate creation workflow." })}>
-                    {approveCreatedEstimate.isPending ? "Approving..." : "Approve Estimate"}
-                  </Button>
-                ) : (
-                  <p className="rounded-md bg-white p-3 text-xs text-[var(--muted)]">
-                    This estimate is finalized and cannot be approved again.
-                  </p>
-                )}
+                <Link to={`/repair/parts-usage?ticketId=${visibleCreatedEstimate.repairTicketId || visibleCreatedEstimate.ticketId || ""}`}>
+                  <Button className="w-full" type="button">View Parts Usage</Button>
+                </Link>
               </div>
-            ) : null}
-            {lastApprovedTicketId && !createdEstimate ? (
-              <Link className="mt-4 block" to={`/repair/parts-usage?ticketId=${lastApprovedTicketId}`}>
-                <Button className="w-full" type="button">Go to Parts Usage</Button>
-              </Link>
             ) : null}
           </CardContent>
         </Card>
@@ -236,7 +180,7 @@ export function Estimates() {
 }
 
 export function EstimateDetails({ id }) {
-  const { data, refetch } = useQuery({ queryKey: ["estimate", id], queryFn: () => repairApi.getEstimate(id), enabled: Boolean(id) });
+  const { data } = useQuery({ queryKey: ["estimate", id], queryFn: () => repairApi.getEstimate(id), enabled: Boolean(id) });
   const estimate = firstObject(data, ["estimate"]);
 
   // Fetch ticket details dynamically
@@ -247,9 +191,6 @@ export function EstimateDetails({ id }) {
   });
   const ticket = ticketQuery.data?.data?.ticket || ticketQuery.data?.data || null;
 
-  const approve = useNotifyMutation({ mutationFn: (payload) => repairApi.approveEstimate(id, payload), successMessage: "Estimate approved.", onSuccess: () => refetch() });
-  const reject = useNotifyMutation({ mutationFn: (payload) => repairApi.rejectEstimate(id, payload), successMessage: "Estimate rejected.", onSuccess: () => refetch() });
-  const canActOnEstimate = ["PENDING", "DRAFT", "SENT"].includes(estimate.status);
   const items = estimate.items || estimate.estimateItems || [];
   const history = estimate.auditLogs || estimate.statusLogs || [
     estimate.createdAt ? { id: "created", type: "CREATED", createdAt: estimate.createdAt } : null,
@@ -476,12 +417,14 @@ export function EstimateDetails({ id }) {
         </div>
 
         <Card>
-          <CardHeader><CardTitle>Approval Workflow</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Next Step</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <Textarea id="estimate-action-notes" placeholder="Approval or rejection notes" />
-            {!canActOnEstimate ? <p className="text-sm text-[var(--muted)]">This estimate is finalized and no approval action is available.</p> : null}
-            <ConfirmAction title="Approve estimate?" description="Approved estimate pricing becomes the customer approval snapshot." disabled={approve.isPending || !canActOnEstimate} onConfirm={() => approve.mutate({ notes: document.getElementById("estimate-action-notes")?.value || "" })}>Approve Estimate</ConfirmAction>
-            <ConfirmAction title="Reject estimate?" description="This keeps the rejected estimate in history and may affect the repair workflow." variant="danger" disabled={reject.isPending || !canActOnEstimate} onConfirm={() => reject.mutate({ notes: document.getElementById("estimate-action-notes")?.value || "" })}>Reject Estimate</ConfirmAction>
+            <p className="text-sm text-[var(--muted)]">Estimate is a customer price snapshot. Actual parts cost is recorded by the technician in parts usage.</p>
+            {estimate.status === "APPROVED" && estimate.repairTicketId ? (
+              <Link to={`/repair/parts-usage?ticketId=${estimate.repairTicketId}`}>
+                <Button className="w-full" type="button">View Parts Usage</Button>
+              </Link>
+            ) : null}
           </CardContent>
         </Card>
       </div>

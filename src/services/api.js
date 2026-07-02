@@ -1,7 +1,7 @@
 import axios from "axios";
 import { clearSession, getAccessToken, getRefreshToken, persistSession } from "@/services/session";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 export const ALL_BRANCHES = "__all__";
 const BRANCH_STORAGE_KEY = "repair_erp_selected_branch";
 const BRANCH_SCOPED_PREFIXES = [

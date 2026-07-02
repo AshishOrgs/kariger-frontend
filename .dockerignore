@@ -4,7 +4,8 @@ dist
 .github
 .vscode
 .env
-.env.\*
+.env.*
+!.env.production
 Dockerfile
 docker-compose.yml
 README.md

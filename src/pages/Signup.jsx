@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Building2, UserPlus } from "lucide-react";
+import { Building2, Eye, EyeOff, UserPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
@@ -10,29 +10,19 @@ import { Field, Input, Textarea } from "@/components/ui/Form";
 import { authApi } from "@/services/modules";
 import loginBg from "@/public/assets/login_bg.png";
 
-const signupSchema = z
-  .object({
-    name: z.string().min(1, "Name is required"),
-    mobile: z.string().min(7, "Mobile number is required"),
-    shopName: z.string().min(1, "Shop name is required"),
-    address: z.string().min(1, "Address is required"),
-    email: z.string().email("Valid email is required"),
-    confirmEmail: z.string().email("Confirm email is required"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string().min(8, "Confirm password is required"),
-  })
-  .refine((value) => value.email.toLowerCase() === value.confirmEmail.toLowerCase(), {
-    message: "Email and confirm email must match",
-    path: ["confirmEmail"],
-  })
-  .refine((value) => value.password === value.confirmPassword, {
-    message: "Password and confirm password must match",
-    path: ["confirmPassword"],
-  });
+const signupSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  mobile: z.string().min(7, "Mobile number is required"),
+  shopName: z.string().min(1, "Shop name is required"),
+  address: z.string().min(1, "Address is required"),
+  email: z.string().email("Valid email is required"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
 
 export function Signup() {
   const navigate = useNavigate();
   const [success, setSuccess] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const form = useForm({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -41,9 +31,7 @@ export function Signup() {
       shopName: "",
       address: "",
       email: "",
-      confirmEmail: "",
       password: "",
-      confirmPassword: "",
     },
   });
 
@@ -56,9 +44,7 @@ export function Signup() {
         shopName: values.shopName.trim(),
         address: values.address.trim(),
         email: values.email.trim(),
-        confirmEmail: values.confirmEmail.trim(),
         password: values.password,
-        confirmPassword: values.confirmPassword,
       });
       setSuccess("Signup complete. Login with your owner email to choose a subscription plan.");
       setTimeout(() => navigate("/login", { replace: true }), 1200);
@@ -105,14 +91,24 @@ export function Signup() {
             <Field label="Email" error={form.formState.errors.email?.message}>
               <Input type="email" autoComplete="email" placeholder="owner@shop.com" {...form.register("email")} />
             </Field>
-            <Field label="Confirm email" error={form.formState.errors.confirmEmail?.message}>
-              <Input type="email" autoComplete="email" placeholder="owner@shop.com" {...form.register("confirmEmail")} />
-            </Field>
             <Field label="Password" error={form.formState.errors.password?.message}>
-              <Input type="password" autoComplete="new-password" placeholder="Minimum 8 characters" {...form.register("password")} />
-            </Field>
-            <Field label="Confirm password" error={form.formState.errors.confirmPassword?.message}>
-              <Input type="password" autoComplete="new-password" placeholder="Repeat password" {...form.register("confirmPassword")} />
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  placeholder="Minimum 8 characters"
+                  className="pr-10"
+                  {...form.register("password")}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-3 grid place-items-center text-slate-400 hover:text-slate-700"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </Field>
             <Field label="Shop address" error={form.formState.errors.address?.message} className="md:col-span-2">
               <Textarea placeholder="Full shop address" {...form.register("address")} />

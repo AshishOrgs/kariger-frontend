@@ -22,6 +22,7 @@ const InventoryDetails = lazy(() => import("@/pages/Inventory").then((module) =>
 const Login = lazy(() => import("@/pages/Login").then((module) => ({ default: module.Login })));
 const Signup = lazy(() => import("@/pages/Signup").then((module) => ({ default: module.Signup })));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword").then((module) => ({ default: module.ForgotPassword })));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword").then((module) => ({ default: module.ResetPassword })));
 const PartsUsage = lazy(() => import("@/pages/PartsUsage").then((module) => ({ default: module.PartsUsage })));
 const CreateRepair = lazy(() => import("@/pages/Repair").then((module) => ({ default: module.CreateRepair })));
 const Repair = lazy(() => import("@/pages/Repair").then((module) => ({ default: module.Repair })));
@@ -97,6 +98,7 @@ export function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<ProtectedRoute />} >
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<RequireRole roles={operatorAndTechnician}><Dashboard /></RequireRole>} />

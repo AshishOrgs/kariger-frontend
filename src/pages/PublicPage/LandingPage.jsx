@@ -42,6 +42,14 @@ export function LandingPage() {
 
   const [billingPeriod, setBillingPeriod] = useState("monthly"); // monthly or yearly
   const [activeTab, setActiveTab] = useState("checkin"); // checkin, review, handover
+  const formatRupees = (amount) =>
+    `₹${Math.round(amount).toLocaleString("en-IN")}`;
+  const getPlanPrice = (monthlyPrice) =>
+    billingPeriod === "monthly"
+      ? formatRupees(monthlyPrice)
+      : formatRupees(monthlyPrice * 12 * 0.8);
+  const getAnnualSavings = (monthlyPrice) =>
+    formatRupees(monthlyPrice * 12 - monthlyPrice * 12 * 0.8);
 
   const features = [
     {
@@ -113,7 +121,8 @@ export function LandingPage() {
     {
       name: "Starter Plan",
       desc: "Ideal for new local repair workshops starting on SaaS.",
-      price: billingPeriod === "monthly" ? "₹299" : "₹399",
+      price: getPlanPrice(299),
+      annualSavings: getAnnualSavings(299),
       features: [
         "2 Branch Location context",
         "First 50 repair devices free",
@@ -128,7 +137,8 @@ export function LandingPage() {
     {
       name: "Growth Plan",
       desc: "Best for multi-branch repair businesses and expanding operations.",
-      price: billingPeriod === "monthly" ? "₹399" : "₹499",
+      price: getPlanPrice(399),
+      annualSavings: getAnnualSavings(399),
       features: [
         "Unlimited Branch locations context",
         "Up to 15 active staff accounts",
@@ -714,11 +724,9 @@ export function LandingPage() {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
             <div className="h-8 w-8 rounded-lg bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] grid place-items-center text-white font-black">
-              RF
+              K
             </div>
-            <span className="font-extrabold text-slate-800">
-              RepairFlow ERP
-            </span>
+            <span className="font-extrabold text-slate-800">KARIGER</span>
           </div>
 
           <p className="text-center text-slate-400">

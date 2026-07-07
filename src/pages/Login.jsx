@@ -33,7 +33,9 @@ export function Login() {
         return;
       }
       try {
-        const response = await authApi.getBranchesByEmail({ email: emailValue.trim() });
+        const response = await authApi.getBranchesByEmail({
+          email: emailValue.trim(),
+        });
         setBranches(response?.data?.branches || []);
       } catch (err) {
         console.error("Failed to fetch branch suggestions", err);
@@ -56,7 +58,11 @@ export function Login() {
       };
       await login(payload);
     } catch (error) {
-      form.setError("root", { message: error?.response?.data?.message || "Invalid credentials or branch check failed." });
+      form.setError("root", {
+        message:
+          error?.response?.data?.message ||
+          "Invalid credentials or branch check failed.",
+      });
     }
   }
 
@@ -79,13 +85,17 @@ export function Login() {
             Welcome Back
           </CardTitle>
           <p className="mt-1 text-xs font-semibold text-slate-500">
-            Access the RepairFlow ERP Dashboard
+            Access the KARIGER Dashboard
           </p>
         </CardHeader>
         <CardContent className="p-6">
           <form className="space-y-4" onSubmit={form.handleSubmit(submit)}>
             <Field
-              label={<span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Email Address</span>}
+              label={
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
+                  Email Address
+                </span>
+              }
               error={form.formState.errors.email?.message}
             >
               <Input
@@ -98,7 +108,11 @@ export function Login() {
             </Field>
 
             <Field
-              label={<span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Password</span>}
+              label={
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
+                  Password
+                </span>
+              }
               error={form.formState.errors.password?.message}
             >
               <Input
@@ -113,7 +127,10 @@ export function Login() {
             <Field
               label={
                 <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
-                  Branch Context <span className="text-[9px] font-normal text-slate-400 normal-case">(Staff only)</span>
+                  Branch Context{" "}
+                  <span className="text-[9px] font-normal text-slate-400 normal-case">
+                    (Staff only)
+                  </span>
                 </span>
               }
               error={form.formState.errors.branchName?.message}
@@ -142,20 +159,31 @@ export function Login() {
               className="w-full h-11 text-xs font-black bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-white border-none shadow-lg shadow-blue-200/50 hover:brightness-95 transition-all mt-6 rounded-lg cursor-pointer"
               disabled={form.formState.isSubmitting}
             >
-              {form.formState.isSubmitting ? "Signing in..." : "Login to Portal"}
+              {form.formState.isSubmitting
+                ? "Signing in..."
+                : "Login to Portal"}
             </Button>
 
             <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 mt-6 text-xs">
-              <Link to="/signup" className="font-bold text-[#1769aa] hover:underline">
+              <Link
+                to="/signup"
+                className="font-bold text-[#1769aa] hover:underline"
+              >
                 Owner signup
               </Link>
-              <Link to="/forgot-password" className="font-bold text-slate-500 hover:text-slate-800 hover:underline">
+              <Link
+                to="/forgot-password"
+                className="font-bold text-slate-500 hover:text-slate-800 hover:underline"
+              >
                 Forgot password?
               </Link>
             </div>
 
             <div className="text-center">
-              <Link to="/" className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-bold inline-flex items-center gap-1">
+              <Link
+                to="/"
+                className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-bold inline-flex items-center gap-1"
+              >
                 ← Back to homepage
               </Link>
             </div>

@@ -35,7 +35,7 @@ http://localhost:8000/api/v1
 
 ## Backend Module Mapping
 
-Navigation exposes only backend-backed ERP screens:
+Navigationsss exposes only backend-backed ERP screens:
 
 - Analytics
 - Assignments

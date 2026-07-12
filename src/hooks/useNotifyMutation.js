@@ -7,16 +7,29 @@ export function getErrorMessage(error) {
 
 export function useNotifyMutation(options) {
   const toast = useToast();
-  const { successMessage, errorMessage, onSuccess, onError, ...mutationOptions } = options;
+  const { successMessage, errorMessage, limitResource, mutationFn, onSuccess, onError, ...mutationOptions } = options;
 
   return useMutation({
     ...mutationOptions,
+    mutationFn: async (...args) => {
+      if (limitResource && toast.showRememberedLimit(limitResource)) {
+        const error = new Error("Subscription limit already reached");
+        error.__limitGuard = true;
+        throw error;
+      }
+      return mutationFn(...args);
+    },
     onSuccess: async (...args) => {
       if (successMessage) toast.success(typeof successMessage === "function" ? successMessage(...args) : successMessage);
       await onSuccess?.(...args);
     },
     onError: async (error, ...args) => {
-      toast.error(errorMessage || getErrorMessage(error));
+      if (error.__limitGuard) return;
+      if (errorMessage) {
+        toast.error(errorMessage);
+      } else {
+        toast.errorFromApi(error, getErrorMessage(error));
+      }
       await onError?.(error, ...args);
     },
   });

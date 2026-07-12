@@ -1,16 +1,19 @@
 import { useMemo, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
-import { LogOut, Menu } from "lucide-react";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Clock3, LockKeyhole, LogOut, Menu, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Form";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBranch } from "@/contexts/BranchContext";
 import { navigation } from "@/layouts/navigation";
+import { subscriptionApi } from "@/services/modules";
 import { cn } from "@/utils/cn";
+import { openWhatsApp } from "@/utils/whatsapp";
 
 export function AppLayout() {
   const [open, setOpen] = useState(false);
-  const { user, logout, hasRole } = useAuth();
+  const location = useLocation();
+  const { user, logout, hasRole, updateSubscription } = useAuth();
   const { allBranchesValue, branches, selectedBranchId, setSelectedBranchId } = useBranch();
   const isSuperAdmin = hasRole("SUPER_ADMIN");
 
@@ -46,6 +49,15 @@ export function AppLayout() {
       });
   }, [hasRole, user?.role]);
   const showBranchSelector = hasRole("OWNER") && branches.length > 0;
+  const subscription = user?.business?.subscription;
+  const isSubscriptionPath = location.pathname === "/subscription" || location.pathname.startsWith("/subscription/");
+  const approvalPending = isApprovalPending(subscription);
+  const isWorkspaceLocked =
+    !isSuperAdmin &&
+    subscription?.isWorkspaceLocked &&
+    !isSubscriptionPath &&
+    (!approvalPending || user?.role === "OWNER");
+  const trialWarning = !isSuperAdmin && !isWorkspaceLocked && subscription?.trialWarningLevel;
   const closeMobileSidebar = () => setOpen(false);
 
   return (
@@ -167,9 +179,231 @@ export function AppLayout() {
             </Select>
           ) : null}
         </header>
-        <main className="min-w-0 overflow-x-hidden p-4 pb-28 lg:p-6">
-          <Outlet />
+        <main className="relative min-w-0 overflow-x-hidden p-4 pb-28 lg:p-6">
+          {trialWarning ? <TrialWarningBanner subscription={subscription} /> : null}
+          <div className={cn(isWorkspaceLocked && "pointer-events-none select-none blur-sm")}>
+            <Outlet />
+          </div>
         </main>
+      </div>
+      {isWorkspaceLocked ? <LockedWorkspaceOverlay subscription={subscription} user={user} updateSubscription={updateSubscription} /> : null}
+    </div>
+  );
+}
+
+function TrialWarningBanner({ subscription }) {
+  const days = subscription?.daysRemaining;
+  const label = days <= 1 ? "Your trial ends in 1 day." : `Your trial ends in ${days} days.`;
+
+  return (
+    <div className="mb-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3">
+        <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+        <div>
+          <p className="text-sm font-black">Trial Ending Soon</p>
+          <p className="text-sm text-amber-800">
+            {label} Start your subscription to keep KARIGER running without interruption.
+          </p>
+        </div>
+      </div>
+      <Link to="/subscription" className="shrink-0">
+        <Button size="sm" type="button">Start Subscription</Button>
+      </Link>
+    </div>
+  );
+}
+
+function lockReasonText(reason) {
+  const reasons = {
+    BRANCH_LIMIT_REACHED: "Your Starter trial branch limit has been reached.",
+    DEVICE_LIMIT_REACHED: "Your Starter trial repair device limit has been reached.",
+    STAFF_LIMIT_REACHED: "Your Starter trial staff limit has been reached.",
+    TRIAL_PERIOD_ENDED: "Your 14-day trial has ended.",
+  };
+
+  return reasons[reason] || "Your trial has ended.";
+}
+
+function isApprovalPending(subscription) {
+  return subscription?.effectiveStatus === "APPROVAL_PENDING";
+}
+
+function planLabel(subscription) {
+  if (!subscription?.plan) return "Trial";
+  const planName = subscription.plan.charAt(0) + subscription.plan.slice(1).toLowerCase();
+  return subscription.status === "TRIALING" || ["EXPIRED", "APPROVAL_PENDING"].includes(subscription.effectiveStatus) ? `${planName} Trial` : planName;
+}
+
+function planDisplayName(plan) {
+  if (!plan) return "Selected Plan";
+  const planName = plan.charAt(0) + plan.slice(1).toLowerCase();
+  return `${planName} Plan`;
+}
+
+function formatDate(value, fallback = "Not available") {
+  if (!value) return fallback;
+  return new Date(value).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function usageLabel(used, limit) {
+  const usedValue = used ?? 0;
+  if (limit === null || limit === undefined) return String(usedValue);
+  return `${usedValue}/${limit}`;
+}
+
+function DetailRow({ label, value, danger = false }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="font-semibold text-slate-600">{label}</span>
+      <span className={cn("text-right font-black", danger ? "text-red-600" : "text-slate-950")}>{value}</span>
+    </div>
+  );
+}
+
+function buildOwnerActivationMessage({ subscription, user }) {
+  const paymentRequest = subscription?.metadata?.paymentRequest || {};
+  const requestId =
+    paymentRequest.paymentRequestId ||
+    paymentRequest.id ||
+    subscription?.metadata?.paymentRequestId ||
+    subscription?.metadata?.billingProviderRef ||
+    "";
+  const planName = planDisplayName(subscription?.plan);
+
+  return [
+    "Subscription Activation Request",
+    "",
+    "Request ID:",
+    requestId,
+    "",
+    "Plan:",
+    planName,
+    "",
+    "Business:",
+    user?.business?.name || "",
+    "",
+    "Owner:",
+    user?.fullName || "",
+    "",
+    "Mobile:",
+    user?.phone || "",
+    "",
+    `Please activate our ${planName}.`,
+    "",
+    "Expected activation time:",
+    "Within 1 hour.",
+  ].join("\n");
+}
+
+function paymentRequestId(subscription) {
+  const paymentRequest = subscription?.metadata?.paymentRequest || {};
+  return (
+    paymentRequest.paymentRequestId ||
+    paymentRequest.id ||
+    subscription?.metadata?.paymentRequestId ||
+    subscription?.metadata?.billingProviderRef ||
+    ""
+  );
+}
+
+function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
+  const [contacting, setContacting] = useState(false);
+  const isOwner = user?.role === "OWNER";
+  const approvalPending = isApprovalPending(subscription);
+  const supportWhatsApp = user?.business?.supportWhatsapp || import.meta.env.VITE_PAY_WHATSAPP;
+  const title = approvalPending ? "Approval Pending" : "Subscription Expired";
+  const status = subscription?.effectiveStatus || subscription?.status || (approvalPending ? "APPROVAL_PENDING" : "EXPIRED");
+  const message = approvalPending
+    ? "The Starter Trial limit has been reached.\n\nYour selected plan needs KARIGER approval before the workspace can continue."
+    : `${lockReasonText(subscription?.trialExpiryReason)} Renew your subscription to continue using KARIGER.`;
+  const handleContactOwner = async () => {
+    setContacting(true);
+    let messageSubscription = subscription;
+    try {
+      if (!paymentRequestId(messageSubscription)) {
+        const response = await subscriptionApi.requestPayment({
+          plan: messageSubscription?.plan || "STARTER",
+          durationDays: 30,
+        });
+        if (response.data?.subscription) {
+          messageSubscription = response.data.subscription;
+          updateSubscription?.(response.data.subscription);
+        }
+      }
+    } catch (error) {
+      setContacting(false);
+      window.alert(error?.response?.data?.message || "Unable to prepare activation request.");
+      return;
+    }
+
+    const opened = openWhatsApp({
+      phone: supportWhatsApp,
+      message: buildOwnerActivationMessage({ subscription: messageSubscription, user }),
+    });
+    setContacting(false);
+    if (!opened) {
+      window.alert("WhatsApp number is not configured.");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/55 px-4 backdrop-blur-sm">
+      <div className="w-full max-w-lg rounded-lg border border-white/70 bg-white p-6 text-center shadow-2xl">
+        <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-[linear-gradient(135deg,#e0f2fe,#ecfeff)] shadow-inner">
+          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-white shadow-lg">
+            <LockKeyhole className="h-8 w-8" />
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center justify-center gap-2 text-[var(--primary)]">
+          <Sparkles className="h-4 w-4" />
+          <span className="text-xs font-black uppercase tracking-wider">Workspace Locked</span>
+        </div>
+
+        <h2 className="mt-2 text-2xl font-black text-slate-950">{title}</h2>
+        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+          {message}
+        </p>
+
+        <div className="mt-5 grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-left text-sm">
+          <p className="mb-1 text-xs font-black uppercase tracking-wider text-slate-500">Subscription Details</p>
+          <DetailRow label="Current Plan" value={planLabel(subscription)} />
+          <DetailRow label="Status" value={status} danger={!approvalPending} />
+          <DetailRow label="Trial Started" value={formatDate(subscription?.trialStartedAt)} />
+          <DetailRow label={approvalPending ? "Locked On" : "Expired On"} value={formatDate(subscription?.expiredOn, approvalPending ? "Approval required" : "Usage limit reached")} />
+        </div>
+
+        <div className="mt-3 grid gap-2 rounded-md border border-slate-200 bg-white p-3 text-left text-sm">
+          <p className="mb-1 text-xs font-black uppercase tracking-wider text-slate-500">Current Usage</p>
+          <DetailRow label="Branches" value={usageLabel(subscription?.branchCount, subscription?.branchLimit)} />
+          <DetailRow label="Devices" value={usageLabel(subscription?.trialDevicesUsed, subscription?.trialDeviceLimit)} />
+          <DetailRow label="Staff" value={usageLabel(subscription?.staffCount, subscription?.staffLimit)} />
+        </div>
+
+        {approvalPending ? (
+          <div className="mt-6">
+            <Button className="w-full" type="button" onClick={handleContactOwner} disabled={contacting}>
+              {contacting ? "Preparing Request..." : "Contact KARIGER Owner"}
+            </Button>
+          </div>
+        ) : isOwner ? (
+          <div className="mt-6 grid gap-2 sm:grid-cols-2">
+            <Link to="/subscription">
+              <Button className="w-full" type="button">Renew Subscription</Button>
+            </Link>
+            <Link to="/subscription">
+              <Button className="w-full" type="button" variant="secondary">Contact on WhatsApp</Button>
+            </Link>
+          </div>
+        ) : (
+          <p className="mt-6 rounded-md bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+            Please contact the business owner to activate the subscription.
+          </p>
+        )}
       </div>
     </div>
   );

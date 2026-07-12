@@ -99,7 +99,7 @@ export const staffApi = {
 
 export const subscriptionApi = {
   current: () => get("/subscription/current"),
-  startTrial: () => post("/subscription/start-trial"),
+  startTrial: (payload) => post("/subscription/start-trial", payload),
   requestPayment: (payload) => post("/subscription/payment-request", payload),
 };
 

@@ -35,8 +35,8 @@ export function Subscription() {
   const displaySubscription =
     subscription ||
     {
-      plan: "STARTER",
-      status: "PENDING",
+      plan: null,
+      status: "NOT_SELECTED",
       expiresAt: null,
       daysRemaining: null,
       metadata: null,
@@ -64,6 +64,7 @@ export function Subscription() {
   const paymentMutation = useMutation({
     mutationFn: subscriptionApi.requestPayment,
     onSuccess: (response) => {
+      if (response.data?.subscription) updateSubscription(response.data.subscription);
       queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
       toast.success("Payment request prepared.");
       if (response.data?.whatsappUrl) {
@@ -116,7 +117,7 @@ export function Subscription() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-5">
-                <Metric label="Plan" value={displaySubscription.plan} />
+                <Metric label="Plan" value={displaySubscription.plan || "Not selected"} />
                 <Metric label="Status" value={<StatusBadge status={displaySubscription.status} />} />
                 <Metric label="Expires" value={formatDate(displaySubscription.expiresAt)} />
                 <Metric
@@ -202,14 +203,14 @@ export function Subscription() {
                   className="w-full"
                   variant="secondary"
                   disabled={trialMutation.isPending}
-                  onClick={() => trialMutation.mutate()}
+                  onClick={() => trialMutation.mutate({ plan: "STARTER" })}
                 >
                   {trialMutation.isPending ? "Starting..." : "Start Starter Trial"}
                 </Button>
               ) : null}
               <Button className="w-full" disabled={paymentMutation.isPending || !selectedPlan} onClick={handlePay}>
                 <Send className="h-4 w-4" />
-                {paymentMutation.isPending ? "Preparing..." : "Payment Now"}
+                {paymentMutation.isPending ? "Preparing..." : "Start Subscription"}
               </Button>
             </CardContent>
           </Card>

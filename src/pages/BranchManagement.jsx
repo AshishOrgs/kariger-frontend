@@ -40,12 +40,22 @@ export function BranchManagement() {
   };
 
   const createMutation = useMutation({
-    mutationFn: branchesApi.create,
+    mutationFn: (payload) => {
+      if (toast.showRememberedLimit("branches")) {
+        const error = new Error("Subscription limit already reached");
+        error.__limitGuard = true;
+        return Promise.reject(error);
+      }
+      return branchesApi.create(payload);
+    },
     onSuccess: () => {
       refresh();
       toast.success("Branch created.");
     },
-    onError: (error) => toast.error(error?.response?.data?.message || "Unable to create branch."),
+    onError: (error) => {
+      if (error.__limitGuard) return;
+      toast.errorFromApi(error, "Unable to create branch.");
+    },
   });
 
   const updateMutation = useMutation({

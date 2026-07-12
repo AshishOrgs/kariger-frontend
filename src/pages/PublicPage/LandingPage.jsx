@@ -32,6 +32,8 @@ export function LandingPage() {
     if (isAuthenticated && user) {
       if (user.role === "SUPER_ADMIN") {
         navigate("/super-admin/businesses", { replace: true });
+      } else if (user.role === "OWNER" && user.business?.subscription?.status === "NOT_SELECTED") {
+        navigate("/plans", { replace: true });
       } else if (user.role === "OWNER" || user.role === "ADMIN") {
         navigate("/branch/portal", { replace: true });
       } else {
@@ -126,7 +128,7 @@ export function LandingPage() {
       features: [
         "2 Branch Location context",
         "First 50 repair devices free",
-        "Up to 3 active staff accounts",
+        "Up to 5 active staff accounts",
         "Standard intake & ticket tracking",
         "Basic invoicing & ledger logs",
         "Email support response within 24 hours",
@@ -148,7 +150,7 @@ export function LandingPage() {
         "QA Queues & custody handover logs",
         "Priority live chat support",
       ],
-      cta: "Payment Now",
+      cta: "Start 14-Day Trial",
       popular: true,
     },
     {
@@ -163,7 +165,7 @@ export function LandingPage() {
         "24/7 account manager & phone support",
         "Custom SLA guidelines",
       ],
-      cta: "Payment Now",
+      cta: "Start 14-Day Trial",
       popular: false,
     },
   ];

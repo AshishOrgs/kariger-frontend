@@ -159,12 +159,22 @@ function AdminDashboard() {
   const refreshStaff = () => queryClient.invalidateQueries({ queryKey: ["staff"] });
 
   const createMutation = useMutation({
-    mutationFn: staffApi.createStaff,
+    mutationFn: (payload) => {
+      if (toast.showRememberedLimit("staff")) {
+        const error = new Error("Subscription limit already reached");
+        error.__limitGuard = true;
+        return Promise.reject(error);
+      }
+      return staffApi.createStaff(payload);
+    },
     onSuccess: () => {
       refreshStaff();
       toast.success("Technician created successfully.");
     },
-    onError: (error) => toast.error(error?.response?.data?.message || "Unable to create technician."),
+    onError: (error) => {
+      if (error.__limitGuard) return;
+      toast.errorFromApi(error, "Unable to create technician.");
+    },
   });
 
   const statusMutation = useMutation({

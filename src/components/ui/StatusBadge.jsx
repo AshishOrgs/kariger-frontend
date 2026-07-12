@@ -13,6 +13,7 @@ const tones = {
   DELIVERED: "bg-green-50 text-green-800",
   CANCELLED: "bg-red-50 text-red-800",
   CLOSED: "bg-slate-200 text-slate-800",
+  NOT_SELECTED: "bg-slate-50 text-slate-700",
   PENDING: "bg-yellow-50 text-yellow-800",
   DONE: "bg-emerald-50 text-emerald-800",
   ACTIVE: "bg-emerald-50 text-emerald-800",

@@ -20,7 +20,7 @@ function ownerLabel(owner) {
 
 function planLabel(subscription) {
   if (!subscription) return "No plan";
-  return `${subscription.plan} / ${subscription.status}`;
+  return `${subscription.plan || "No plan selected"} / ${subscription.status}`;
 }
 
 export function SuperAdminBusinesses() {
@@ -368,21 +368,32 @@ function dateInputValue(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatAuditDate(value) {
+  if (!value) return "Not set";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not set";
+  return date.toLocaleString();
+}
+
 function SubscriptionAdminForm({ business, isSaving, onSave }) {
   const subscription = business?.subscription;
   const request = subscription?.metadata?.paymentRequest;
   const [plan, setPlan] = useState(subscription?.plan || "STARTER");
-  const [status, setStatus] = useState(subscription?.status || "PENDING");
+  const [status, setStatus] = useState(subscription?.status || "NOT_SELECTED");
   const [startsAt, setStartsAt] = useState(dateInputValue(subscription?.startsAt));
   const [expiresAt, setExpiresAt] = useState(dateInputValue(subscription?.expiresAt));
   const [addDays, setAddDays] = useState("");
+  const [activationReason, setActivationReason] = useState("Manual Payment Verified");
+  const [internalNote, setInternalNote] = useState("");
 
   useEffect(() => {
     setPlan(subscription?.plan || "STARTER");
-    setStatus(subscription?.status || "PENDING");
+    setStatus(subscription?.status || "NOT_SELECTED");
     setStartsAt(dateInputValue(subscription?.startsAt));
     setExpiresAt(dateInputValue(subscription?.expiresAt));
     setAddDays("");
+    setActivationReason("Manual Payment Verified");
+    setInternalNote("");
   }, [subscription]);
 
   const handleSubmit = (event) => {
@@ -393,9 +404,26 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
       startsAt: startsAt || undefined,
       expiresAt: expiresAt || null,
       addDays: addDays ? Number(addDays) : undefined,
+      activationReason,
+      internalNote: internalNote || undefined,
     };
     onSave(payload);
   };
+
+  const handleActivate = () => {
+    onSave({
+      plan,
+      status: "ACTIVE",
+      startsAt: startsAt || undefined,
+      expiresAt: expiresAt || undefined,
+      addDays: addDays ? Number(addDays) : undefined,
+      activationReason,
+      internalNote: internalNote || undefined,
+    });
+  };
+
+  const audit = subscription?.metadata?.subscriptionAudit || [];
+  const history = subscription?.metadata?.subscriptionHistory || audit;
 
   return (
     <Card>
@@ -413,9 +441,11 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
           </Field>
           <Field label="Status">
             <Select value={status} onChange={(event) => setStatus(event.target.value)}>
+              <option value="NOT_SELECTED">Not selected</option>
               <option value="PENDING">Pending</option>
               <option value="DONE">Done</option>
               <option value="ACTIVE">Active</option>
+              <option value="TRIALING">Trialing</option>
               <option value="EXPIRED">Expired</option>
               <option value="SUSPENDED">Suspended</option>
               <option value="CANCELLED">Cancelled</option>
@@ -437,6 +467,22 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
               placeholder="Example: 30"
             />
           </Field>
+          <Field label="Activation reason">
+            <Select value={activationReason} onChange={(event) => setActivationReason(event.target.value)}>
+              <option value="Manual Payment Verified">Manual Payment Verified</option>
+              <option value="UPI Payment">UPI Payment</option>
+              <option value="Renewal">Renewal</option>
+              <option value="Extension">Extension</option>
+              <option value="Trial Upgrade">Trial Upgrade</option>
+            </Select>
+          </Field>
+          <Field label="Internal note">
+            <Input
+              value={internalNote}
+              onChange={(event) => setInternalNote(event.target.value)}
+              placeholder="Example: Customer paid ₹499, invoice shared"
+            />
+          </Field>
           <div className="rounded-md border border-[var(--border)] p-4">
             <p className="text-xs font-semibold uppercase text-[var(--muted)]">Remaining</p>
             <p className="mt-2 text-sm font-medium">
@@ -448,17 +494,52 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
           {request ? (
             <div className="rounded-md border border-[var(--border)] bg-slate-50 p-4 md:col-span-2">
               <p className="text-xs font-semibold uppercase text-[var(--muted)]">Owner request</p>
+              <p className="mt-2 text-sm font-bold">{request.paymentRequestId || request.id || "Request ID missing"}</p>
               <p className="mt-2 text-sm font-medium">
                 {request.serviceName} · {request.durationDays} days · {formatCurrency(request.price)}
               </p>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                {request.provider || "MANUAL_WHATSAPP"} · {request.status || "REQUESTED"} · requested {formatAuditDate(request.requestedAt)}
+              </p>
             </div>
           ) : null}
-          <div className="md:col-span-2">
+          <div className="flex flex-wrap gap-2 md:col-span-2">
+            <Button type="button" disabled={isSaving} onClick={handleActivate}>
+              {isSaving ? "Activating..." : "Activate Subscription"}
+            </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? "Saving..." : "Save Subscription"}
             </Button>
           </div>
         </form>
+        <div className="mt-5 rounded-md border border-[var(--border)] bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase text-[var(--muted)]">Activation / Renewal Audit</p>
+          {history.length ? (
+            <div className="mt-3 space-y-2">
+              {history.slice().reverse().map((entry, index) => (
+                <div key={`${entry.at}-${index}`} className="rounded-md border border-[var(--border)] bg-white p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold">{entry.action || "UPDATED"} · {entry.plan || "No plan"} · {entry.status || "No status"}</p>
+                    <p className="text-xs text-[var(--muted)]">{formatAuditDate(entry.at)}</p>
+                  </div>
+                  <p className="mt-1 text-xs text-[var(--muted)]">
+                    Provider: {entry.provider || "MANUAL_WHATSAPP"}
+                    {entry.reason ? ` · Reason: ${entry.reason}` : ""}
+                    {entry.addDays ? ` · Extended ${entry.addDays} days` : ""}
+                    {entry.expiresAt ? ` · Expires ${formatAuditDate(entry.expiresAt)}` : ""}
+                  </p>
+                  {entry.internalNote ? (
+                    <p className="mt-2 rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
+                      Internal note: {entry.internalNote}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-[var(--muted)]">No activation or renewal audit yet.</p>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

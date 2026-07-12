@@ -24,6 +24,7 @@ const Signup = lazy(() => import("@/pages/Signup").then((module) => ({ default: 
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword").then((module) => ({ default: module.ForgotPassword })));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword").then((module) => ({ default: module.ResetPassword })));
 const PartsUsage = lazy(() => import("@/pages/PartsUsage").then((module) => ({ default: module.PartsUsage })));
+const PlanSelection = lazy(() => import("@/pages/PlanSelection").then((module) => ({ default: module.PlanSelection })));
 const CreateRepair = lazy(() => import("@/pages/Repair").then((module) => ({ default: module.CreateRepair })));
 const Repair = lazy(() => import("@/pages/Repair").then((module) => ({ default: module.Repair })));
 const RepairDetails = lazy(() => import("@/pages/Repair").then((module) => ({ default: module.RepairDetails })));
@@ -103,6 +104,7 @@ export function AppRoutes() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<RequireRole roles={operatorAndTechnician}><Dashboard /></RequireRole>} />
             <Route path="/branch/portal" element={<RequireRole roles={staffManagers}><BranchPortal /></RequireRole>} />
+            <Route path="/plans" element={<RequireRole roles={ownerOnly}><PlanSelection /></RequireRole>} />
             <Route path="/branches/:id" element={<RequireRole roles={ownerOnly}><BranchDetails /></RequireRole>} />
             <Route path="/admin/workflow" element={<RequireRole roles={staffManagers}><AdminWorkflow /></RequireRole>} />
             <Route path="/assignments" element={<RequireRole roles={operator}><Assignments /></RequireRole>} />

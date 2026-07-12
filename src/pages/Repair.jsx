@@ -74,7 +74,7 @@ export function Repair() {
 }
 
 export function CreateRepair() {
-  const mutation = useNotifyMutation({ mutationFn: repairApi.create, successMessage: "Repair ticket created successfully." });
+  const mutation = useNotifyMutation({ mutationFn: repairApi.create, successMessage: "Repair ticket created successfully.", limitResource: "devices" });
   const createdTicket = mutation.data?.data?.ticket;
 
   return (

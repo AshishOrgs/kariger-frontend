@@ -1,14 +1,13 @@
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, CheckCircle2, CreditCard, KeyRound, PackageCheck, UserCheck, UserPlus, Users, UserX, Wrench } from "lucide-react";
+import { BarChart3, CheckCircle2, CreditCard, PackageCheck, Users, Wrench } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { Button } from "@/components/ui/Button";
-import { Field, Input, Select } from "@/components/ui/Form";
 import { analyticsApi, assignmentsApi, staffApi, repairApi } from "@/services/modules";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -140,7 +139,6 @@ function AdminDashboard() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { user } = useAuth();
-  const [selectedStaffId, setSelectedStaffId] = useState("");
 
   const staffQuery = useQuery({
     queryKey: ["staff"],
@@ -158,25 +156,6 @@ function AdminDashboard() {
 
   const refreshStaff = () => queryClient.invalidateQueries({ queryKey: ["staff"] });
 
-  const createMutation = useMutation({
-    mutationFn: (payload) => {
-      if (toast.showRememberedLimit("staff")) {
-        const error = new Error("Subscription limit already reached");
-        error.__limitGuard = true;
-        return Promise.reject(error);
-      }
-      return staffApi.createStaff(payload);
-    },
-    onSuccess: () => {
-      refreshStaff();
-      toast.success("Technician created successfully.");
-    },
-    onError: (error) => {
-      if (error.__limitGuard) return;
-      toast.errorFromApi(error, "Unable to create technician.");
-    },
-  });
-
   const statusMutation = useMutation({
     mutationFn: ({ id, action }) => (action === "enable" ? staffApi.enable(id) : staffApi.disable(id)),
     onSuccess: () => {
@@ -184,12 +163,6 @@ function AdminDashboard() {
       toast.success("Staff status updated.");
     },
     onError: (error) => toast.error(error?.response?.data?.message || "Unable to update staff status."),
-  });
-
-  const passwordMutation = useMutation({
-    mutationFn: ({ id, password }) => staffApi.resetPassword(id, { password }),
-    onSuccess: () => toast.success("Staff password reset successfully."),
-    onError: (error) => toast.error(error?.response?.data?.message || "Unable to reset password."),
   });
 
   const updateStatusMutation = useMutation({
@@ -213,6 +186,14 @@ function AdminDashboard() {
   const readyForReview = useMemo(() => tickets.filter((t) => t.status === "READY_FOR_REVIEW").length, [tickets]);
   const pendingBilling = useMemo(() => tickets.filter((t) => t.status === "READY_FOR_DELIVERY" && (!t.finalInvoiceAmount || Number(t.finalInvoiceAmount) === 0)).length, [tickets]);
   const pendingHandover = useMemo(() => tickets.filter((t) => t.status === "READY_FOR_DELIVERY").length, [tickets]);
+  const statusChartRows = useMemo(() => {
+    const counts = tickets.reduce((acc, ticket) => {
+      const status = ticket.status || "UNKNOWN";
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+    return Object.entries(counts).map(([name, value]) => ({ name, value }));
+  }, [tickets]);
 
   const technicianWorkload = useMemo(() => {
     return technicians.map((tech) => {
@@ -289,6 +270,52 @@ function AdminDashboard() {
           detail="Ready to deliver"
           icon={<PackageCheck className="h-5 w-5 text-green-500" />}
         />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Repair Status Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="h-80">
+            {statusChartRows.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={statusChartRows} dataKey="value" nameKey="name" innerRadius={62} outerRadius={105} paddingAngle={3} label>
+                    {statusChartRows.map((entry, index) => (
+                      <Cell key={entry.name} fill={colors[index % colors.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState title="No repair data" description="Repair status chart will appear after tickets are created." />
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Technician Workload</CardTitle>
+          </CardHeader>
+          <CardContent className="h-80">
+            {technicianWorkload.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={technicianWorkload}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="fullName" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Bar dataKey="activeRepairs" name="Active Repairs" fill="#1769aa" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="completedRepairs" name="Completed" fill="#0f9f8f" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState title="No technician data" description="Technician workload appears after staff and repairs are assigned." />
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick Operations Links */}
@@ -453,10 +480,9 @@ function AdminDashboard() {
 
       {/* Staff & Technician Performance */}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px] mb-6">
-        {/* Technician Performance list */}
         <Card>
           <CardHeader>
-            <CardTitle>Technician Workload</CardTitle>
+            <CardTitle>Technician Workload Detail</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <QueryState
@@ -491,7 +517,6 @@ function AdminDashboard() {
           </CardContent>
         </Card>
 
-        {/* Staff Management panel */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Branch Staff</CardTitle>
@@ -548,86 +573,6 @@ function AdminDashboard() {
                 </tbody>
               </Table>
             </QueryState>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-5 md:grid-cols-2">
-        {/* Add Technician Form */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserPlus className="h-5 w-5 text-blue-600" />
-              Add Technician
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                createMutation.mutate({
-                  name: String(form.get("fullName") || "").trim(),
-                  fullName: String(form.get("fullName") || "").trim(),
-                  email: String(form.get("email") || "").trim(),
-                  phone: String(form.get("phone") || "").trim() || undefined,
-                  password: String(form.get("password") || ""),
-                  branchId: user?.branchId || "",
-                });
-                event.currentTarget.reset();
-              }}
-            >
-              <Field label="Full Name"><Input name="fullName" required placeholder="e.g. John Doe" /></Field>
-              <Field label="Email Address"><Input name="email" type="email" required placeholder="name@company.com" /></Field>
-              <Field label="Phone (Optional)"><Input name="phone" placeholder="e.g. +1234567890" /></Field>
-              <Field label="Initial Password"><Input name="password" type="password" minLength={8} required placeholder="At least 8 characters" /></Field>
-              <Button className="w-full" disabled={createMutation.isPending}>Create Technician</Button>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Reset password */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <KeyRound className="h-5 w-5 text-yellow-600" />
-              Reset Technician Password
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const form = new FormData(event.currentTarget);
-                passwordMutation.mutate({
-                  id: selectedStaffId,
-                  password: String(form.get("password") || ""),
-                });
-                event.currentTarget.reset();
-                setSelectedStaffId("");
-              }}
-            >
-              <Field label="Technician">
-                <Select
-                  required
-                  value={selectedStaffId}
-                  onChange={(event) => setSelectedStaffId(event.target.value)}
-                >
-                  <option value="">Select a technician</option>
-                  {technicians.map((tech) => (
-                    <option key={tech.id} value={tech.id}>
-                      {tech.fullName} ({tech.email})
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="New Password"><Input name="password" type="password" minLength={8} required placeholder="At least 8 characters" /></Field>
-              <Button className="w-full" disabled={!selectedStaffId || passwordMutation.isPending}>
-                Reset Password
-              </Button>
-            </form>
           </CardContent>
         </Card>
       </div>

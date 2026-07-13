@@ -22,6 +22,13 @@ function ownerLabel(owner) {
   return owner.fullName ? `${owner.fullName} · ${owner.email}` : owner.email;
 }
 
+function subscriptionDisplayStatus(subscription) {
+  if (subscription?.metadata?.paymentRequest?.status === "REQUESTED") {
+    return "APPROVAL_REQUESTED";
+  }
+  return subscription?.status || "NO_PLAN";
+}
+
 export function SuperAdminDashboard() {
   const dashboardQuery = useQuery({
     queryKey: ["super-admin-dashboard"],
@@ -93,7 +100,7 @@ export function SuperAdminDashboard() {
                           <p className="font-semibold">{business.name}</p>
                           <p className="mt-1 text-xs text-[var(--muted)]">{ownerLabel(business.owner)}</p>
                         </div>
-                        <StatusBadge status={business.subscription?.status || "NO_PLAN"} />
+                        <StatusBadge status={subscriptionDisplayStatus(business.subscription)} />
                       </div>
                       <div className="mt-3 grid gap-2 text-xs text-[var(--muted)] sm:grid-cols-3">
                         <span>{business.counts?.branches || 0} branches</span>

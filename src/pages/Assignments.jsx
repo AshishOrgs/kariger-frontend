@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { Timeline } from "@/components/ui/Timeline";
+import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
 import { assignmentsApi, repairApi, staffApi } from "@/services/modules";
 import { unwrapArray } from "@/utils/cn";
@@ -84,15 +85,16 @@ export function Assignments() {
     successMessage: "Technician reassigned.",
     onSuccess: () => queryClient.invalidateQueries(),
   });
+  const workflowTicket = tickets.find((ticket) => ticket.id === activeTicketId) || tickets[0] || null;
 
   return (
-    <>
-      <PageHeader title="Assignments" description="Choose a repair, assign the technician, then continue to estimate." />
+    <OperationsWorkflowPage current="assignment" ticket={workflowTicket} ticketId={activeTicketId} showContinue={false}>
+      <PageHeader title="Assignments" description="Assign technicians, track assignment history, and keep operational notes aligned with each repair." />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-5">
           <Card>
             <CardContent className="text-sm text-[var(--muted)]">
-              Select the customer repair by short ticket code and customer name. After assignment succeeds, use Go to Estimate for the next workflow step.
+              Select the customer repair by short ticket code and customer name. After assignment succeeds, continue to the repair execution workspace.
             </CardContent>
           </Card>
           <div className="grid gap-4 md:grid-cols-4">
@@ -169,13 +171,13 @@ export function Assignments() {
             }}
           />
           {lastAssignedTicketId ? (
-            <Link to={`/repair/estimates?ticketId=${lastAssignedTicketId}`}>
-              <Button className="w-full" type="button">Go to Estimate</Button>
+            <Link to={`/repair?ticketId=${lastAssignedTicketId}`}>
+              <Button className="w-full" type="button">Go to Repair</Button>
             </Link>
           ) : null}
         </div>
       </div>
-    </>
+    </OperationsWorkflowPage>
   );
 }
 

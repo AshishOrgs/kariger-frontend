@@ -8,23 +8,22 @@ import { Input, Select, Textarea } from "@/components/ui/Form";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { billingApi, repairApi } from "@/services/modules";
 import { cn, formatCurrency, unwrapArray } from "@/utils/cn";
 import { firstObject } from "@/utils/data";
 import { useNotifyMutation, getErrorMessage } from "@/hooks/useNotifyMutation";
-import { isBillingEligibleTicket, payableInvoices } from "@/utils/workflow";
+import { isBillingEligibleTicket } from "@/utils/workflow";
 import { ticketLabel } from "@/utils/ticketLabel";
 
 export function Billing() {
   const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [selectedTicketId, setSelectedTicketId] = useState(searchParams.get("ticketId") || "");
-  const [lastPaidTicketId, setLastPaidTicketId] = useState("");
 
   const [taxRate, setTaxRate] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
   const [notes, setNotes] = useState("");
-  const [invoiceDraftReady, setInvoiceDraftReady] = useState(false);
 
   const invoicesQuery = useQuery({ queryKey: ["billing", "invoices"], queryFn: () => billingApi.invoices() });
   const ticketsQuery = useQuery({ queryKey: ["repair"], queryFn: () => repairApi.list({ limit: 100 }) });
@@ -34,7 +33,7 @@ export function Billing() {
   const invoiceCandidates = tickets.filter((ticket) => isBillingEligibleTicket(ticket, invoices));
   const activeTicketId = selectedTicketId || invoiceCandidates[0]?.id || "";
 
-  // Fetch candidate ticket details to get actual costs (labor, parts, vendor)
+  // Fetch candidate ticket details to get approved estimate, used item parts, and technician extra cost.
   const ticketDetailQuery = useQuery({
     queryKey: ["repair-ticket-billing-detail", activeTicketId],
     queryFn: () => repairApi.get(activeTicketId),
@@ -49,7 +48,6 @@ export function Billing() {
   const partsUsage = unwrapArray(partsUsageQuery.data, ["partsUsage", "usages", "usage"]);
 
   const waitingApprovalTickets = tickets.filter((ticket) => ticket.status === "WAITING_APPROVAL");
-  const payable = payableInvoices(invoices);
 
   const invoiceMutation = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.invoice(ticketId, payload),
@@ -58,19 +56,8 @@ export function Billing() {
       setTaxRate(0);
       setDiscountAmount(0);
       setNotes("");
-      setInvoiceDraftReady(false);
       await queryClient.invalidateQueries({ queryKey: ["billing", "invoices"] });
       await queryClient.invalidateQueries({ queryKey: ["repair"] });
-    },
-  });
-
-  const paymentMutation = useNotifyMutation({
-    mutationFn: ({ invoiceId, payload }) => billingApi.collectPayment(invoiceId, payload),
-    successMessage: "Payment collected successfully.",
-    onSuccess: async (_data, variables) => {
-      const invoice = invoices.find((item) => item.id === variables.invoiceId);
-      setLastPaidTicketId(invoice?.repairTicketId || invoice?.ticket?.id || "");
-      await queryClient.invalidateQueries({ queryKey: ["billing", "invoices"] });
     },
   });
 
@@ -80,21 +67,23 @@ export function Billing() {
   const approvedEstimate = ticket?.latestEstimate || ticket?.estimates?.[0] || null;
   const estimateItems = approvedEstimate?.items || approvedEstimate?.estimateItems || [];
   const estimateAmount = Number(approvedEstimate?.totalAmount || 0);
-  const actualPartsExpense = partsUsage.reduce((sum, item) => sum + Number(item.totalCost || Number(item.quantity || 0) * Number(item.unitCost || 0)), 0);
-  const invoiceBaseAmount = invoiceDraftReady ? estimateAmount + actualPartsExpense : 0;
+  const usedPartsAmount = partsUsage.reduce((sum, item) => sum + Number(item.totalCost || Number(item.quantity || 0) * Number(item.unitCost || 0)), 0);
+  const technicianExtraCost = Number(ticket?.extraCost || 0);
+  const hasBillableRepairCost = Boolean(approvedEstimate) || partsUsage.length > 0 || technicianExtraCost > 0;
+  const invoiceBaseAmount = estimateAmount + usedPartsAmount + technicianExtraCost;
   const subtotal = invoiceBaseAmount;
   const taxableAmount = Math.max(0, subtotal - Number(discountAmount || 0));
   const taxAmount = taxableAmount * (Number(taxRate || 0) / 100);
   const finalAmount = taxableAmount + taxAmount;
+  const workflowTicket = ticket || tickets.find((item) => item.id === activeTicketId) || null;
 
   const handleSubmitInvoice = (event) => {
     event.preventDefault();
     if (!activeTicketId) return;
 
     const manualItems = [];
-    if (!invoiceDraftReady) return;
 
-    if (!approvedEstimate && partsUsage.length === 0) {
+    if (!hasBillableRepairCost) {
       manualItems.push({
         name: "Diagnostic & Repair Intake Charge",
         unitPrice: 0,
@@ -107,8 +96,8 @@ export function Billing() {
     invoiceMutation.mutate({
       ticketId: activeTicketId,
       payload: {
-        includeApprovedEstimate: invoiceDraftReady,
-        includeActualUsage: invoiceDraftReady,
+        includeApprovedEstimate: hasBillableRepairCost,
+        includeActualUsage: hasBillableRepairCost,
         manualItems,
         taxRate: Number(taxRate || 0),
         discountAmount: Number(discountAmount || 0),
@@ -118,9 +107,9 @@ export function Billing() {
   };
 
   return (
-    <>
-      <PageHeader title="Billing" description="Generate invoice, invoice list, collect payment, and customer ledger." />
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
+    <OperationsWorkflowPage current="billing" ticket={workflowTicket} ticketId={activeTicketId} showContinue={false} showSummary={false}>
+      <PageHeader title="Billing" description="Create the final invoice from estimate, used item parts, and technician extra cost." />
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
         <Card>
           <CardContent className="p-0">
             <DataTable
@@ -188,7 +177,7 @@ export function Billing() {
         <div className="min-w-0 space-y-5">
           <Card>
             <CardHeader>
-              <CardTitle>Generate Invoice</CardTitle>
+              <CardTitle>Create Final Invoice</CardTitle>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={handleSubmitInvoice}>
@@ -201,7 +190,6 @@ export function Billing() {
                       setDiscountAmount(0);
                       setTaxRate(0);
                       setNotes("");
-                      setInvoiceDraftReady(false);
                     }}
                   >
                     <option value="" disabled>-- Select Ticket --</option>
@@ -215,7 +203,7 @@ export function Billing() {
 
                 {!invoiceCandidates.length ? (
                   <p className="text-sm text-[var(--muted)]">
-                    No tickets are ready for invoice. First approve the estimate, or consume actual parts, then come back here.
+                    No tickets are ready for invoice. First approve the estimate, use item parts, or submit technician extra cost, then come back here.
                   </p>
                 ) : null}
 
@@ -230,6 +218,19 @@ export function Billing() {
                 ) : null}
 
                 {ticket && (
+                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
+                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Repair Cost Source</p>
+                    <p className="mt-1 text-sm font-bold text-slate-950">{ticketLabel(ticket)}</p>
+                    <p className="text-xs text-slate-600">{ticket.customer?.fullName || "Customer not set"}</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                      <CostPill label="Estimate" value={estimateAmount} />
+                      <CostPill label="Used Parts" value={usedPartsAmount} />
+                      <CostPill label="Extra Cost" value={technicianExtraCost} />
+                    </div>
+                  </div>
+                )}
+
+                {ticket && (
                   <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs">
                     <InvoiceDraftPreview
                       ticket={ticket}
@@ -237,53 +238,17 @@ export function Billing() {
                       estimateItems={estimateItems}
                       partsUsage={partsUsage}
                       estimateAmount={estimateAmount}
-                      expenseAmount={actualPartsExpense}
+                      usedPartsAmount={usedPartsAmount}
+                      technicianExtraCost={technicianExtraCost}
+                      extraCostReason={ticket.extraCostReason}
                       invoiceBaseAmount={invoiceBaseAmount}
+                      taxRate={taxRate}
+                      setTaxRate={setTaxRate}
                       taxAmount={taxAmount}
-                      discountAmount={Number(discountAmount || 0)}
+                      discountAmount={discountAmount}
+                      setDiscountAmount={setDiscountAmount}
                       finalAmount={finalAmount}
-                      draftReady={invoiceDraftReady}
                     />
-                    <Button
-                      className="w-full"
-                      type="button"
-                      variant={invoiceDraftReady ? "secondary" : "primary"}
-                      disabled={!activeTicketId || (!approvedEstimate && partsUsage.length === 0)}
-                      onClick={() => setInvoiceDraftReady(true)}
-                    >
-                      {invoiceDraftReady ? "Estimate + Expense Added" : "Add Estimate + Expense"}
-                    </Button>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Tax Rate (%)">
-                    <Input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      placeholder="0"
-                      value={taxRate || ""}
-                      onChange={(e) => setTaxRate(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Discount ($)">
-                    <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      placeholder="0"
-                      value={discountAmount || ""}
-                      onChange={(e) => setDiscountAmount(e.target.value)}
-                    />
-                  </Field>
-                </div>
-
-                {ticket && (
-                  <div className="flex justify-between items-center bg-indigo-50 text-indigo-900 px-3 py-2.5 rounded-md border border-indigo-100 text-xs">
-                    <span className="font-semibold uppercase tracking-wider">Final Amount:</span>
-                    <span className="text-base font-black font-mono">{formatCurrency(finalAmount)}</span>
                   </div>
                 )}
 
@@ -298,73 +263,21 @@ export function Billing() {
                 <Button
                   className="w-full"
                   type="submit"
-                  disabled={invoiceMutation.isPending || !activeTicketId || !invoiceDraftReady}
+                  disabled={invoiceMutation.isPending || !activeTicketId || !hasBillableRepairCost}
                 >
                   {invoiceMutation.isPending ? "Generating..." : "Generate Invoice"}
                 </Button>
-                {!invoiceDraftReady && activeTicketId ? (
-                  <p className="text-xs text-[var(--muted)]">Add estimate and expense cost before generating invoice.</p>
+                {!hasBillableRepairCost && activeTicketId ? (
+                  <p className="text-xs text-[var(--muted)]">This repair has no estimate, used item parts, or technician extra cost yet.</p>
                 ) : null}
               </form>
               {generatedInvoice?.id ? <GeneratedInvoiceSummary invoice={generatedInvoice} /> : null}
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Collect Payment</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form
-                className="space-y-3"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = new FormData(event.currentTarget);
-                  paymentMutation.mutate({
-                    invoiceId: form.get("invoiceId"),
-                    payload: {
-                      amount: Number(form.get("amount") || 0),
-                      method: form.get("method"),
-                      transactionReference: form.get("transactionReference") || undefined,
-                      notes: form.get("notes") || undefined,
-                    },
-                  });
-                }}
-              >
-                <Select name="invoiceId">
-                  {payable.map((invoice) => (
-                    <option key={invoice.id} value={invoice.id}>
-                      {invoice.invoiceNumber} · Due {formatCurrency(invoice.dueAmount)}
-                    </option>
-                  ))}
-                </Select>
-                {!payable.length ? <p className="text-sm text-[var(--muted)]">No unpaid invoices have a remaining due amount.</p> : null}
-                <Input name="amount" type="number" min="0.01" step="0.01" placeholder="Amount" />
-                <Select name="method">
-                  <option>CASH</option>
-                  <option>CARD</option>
-                  <option>UPI</option>
-                  <option>BANK_TRANSFER</option>
-                  <option>WALLET</option>
-                </Select>
-                <Input name="transactionReference" placeholder="Transaction reference" />
-                <Textarea name="notes" placeholder="Payment notes" />
-                <Button className="w-full" disabled={paymentMutation.isPending || !payable.length}>
-                  Collect Payment
-                </Button>
-              </form>
-              {lastPaidTicketId ? (
-                <Link className="mt-3 block" to={`/handover?ticketId=${lastPaidTicketId}`}>
-                  <Button className="w-full" type="button" variant="secondary">
-                    Go to Handover
-                  </Button>
-                </Link>
-              ) : null}
-            </CardContent>
-          </Card>
         </div>
       </div>
-    </>
+    </OperationsWorkflowPage>
   );
 }
 
@@ -383,12 +296,16 @@ function GeneratedInvoiceSummary({ invoice }) {
         <Link to={`/billing/invoices/${invoice.id}`}>
           <Button type="button" size="sm">Open Invoice</Button>
         </Link>
-        {Number(invoice.dueAmount || 0) > 0 ? (
-          <Link to={`/billing/invoices/${invoice.id}`}>
-            <Button type="button" size="sm" variant="secondary">Collect Payment</Button>
-          </Link>
-        ) : null}
       </div>
+    </div>
+  );
+}
+
+function CostPill({ label, value }) {
+  return (
+    <div className="rounded-md border border-blue-100 bg-white px-3 py-2">
+      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-1 text-sm font-black text-slate-950">{formatCurrency(value)}</p>
     </div>
   );
 }
@@ -399,12 +316,16 @@ function InvoiceDraftPreview({
   estimateItems,
   partsUsage,
   estimateAmount,
-  expenseAmount,
+  usedPartsAmount,
+  technicianExtraCost,
+  extraCostReason,
   invoiceBaseAmount,
+  taxRate,
+  setTaxRate,
   taxAmount,
   discountAmount,
+  setDiscountAmount,
   finalAmount,
-  draftReady,
 }) {
   return (
     <div className="rounded-lg border border-[var(--border)] bg-white">
@@ -435,9 +356,9 @@ function InvoiceDraftPreview({
         </InvoiceSection>
 
         <InvoiceSection
-          title="Expense Cost"
+          title="Used Item Parts"
           subtitle={`${partsUsage.length} technician parts usage ${partsUsage.length === 1 ? "entry" : "entries"}`}
-          amount={expenseAmount}
+          amount={usedPartsAmount}
         >
           {partsUsage.length ? (
             partsUsage.map((item, index) => (
@@ -449,16 +370,55 @@ function InvoiceDraftPreview({
               />
             ))
           ) : (
-            <p className="text-xs text-[var(--muted)]">No actual parts expense recorded yet.</p>
+            <p className="text-xs text-[var(--muted)]">No used item parts recorded yet.</p>
           )}
         </InvoiceSection>
+
+        <InvoiceSection
+          title="Technician Extra Cost"
+          subtitle={extraCostReason || "Additional technician charge from repair report"}
+          amount={technicianExtraCost}
+        >
+          {technicianExtraCost > 0 ? (
+            <InvoiceLine
+              name="Technician Extra Cost"
+              meta={extraCostReason || "Repair report extra charge"}
+              amount={technicianExtraCost}
+            />
+          ) : (
+            <p className="text-xs text-[var(--muted)]">No technician extra cost recorded.</p>
+          )}
+        </InvoiceSection>
+
+        <div className="grid gap-3 rounded-md border border-blue-100 bg-blue-50 p-3 sm:grid-cols-2">
+          <Field label="Tax Rate (%)">
+            <Input
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              placeholder="0"
+              value={taxRate || ""}
+              onChange={(event) => setTaxRate(event.target.value)}
+            />
+          </Field>
+          <Field label="Discount">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="0"
+              value={discountAmount || ""}
+              onChange={(event) => setDiscountAmount(event.target.value)}
+            />
+          </Field>
+        </div>
 
         <InvoiceTotals
           subtotal={invoiceBaseAmount}
           discount={discountAmount}
           tax={taxAmount}
           total={finalAmount}
-          muted={!draftReady}
         />
       </div>
     </div>
@@ -467,7 +427,7 @@ function InvoiceDraftPreview({
 
 function InvoiceDocument({ invoice, items }) {
   const estimateItems = items.filter((item) => ["ESTIMATE", "LABOR"].includes(item.sourceType));
-  const expenseItems = items.filter((item) => item.sourceType === "ACTUAL_USAGE");
+  const usedPartsItems = items.filter((item) => item.sourceType === "ACTUAL_USAGE");
   const manualItems = items.filter((item) => !["ESTIMATE", "LABOR", "ACTUAL_USAGE"].includes(item.sourceType));
   const subtotal = items.reduce((sum, item) => sum + Number(item.totalAmount || item.lineTotal || 0), 0);
   const discount = Number(invoice.discountAmount || 0);
@@ -505,8 +465,8 @@ function InvoiceDocument({ invoice, items }) {
               )) : <p className="text-xs text-[var(--muted)]">No estimate items on this invoice.</p>}
             </InvoiceSection>
 
-            <InvoiceSection title="Expense Cost" subtitle="Actual parts usage details" amount={sumInvoiceItems(expenseItems)}>
-              {expenseItems.length ? expenseItems.map((item, index) => (
+            <InvoiceSection title="Used Item Parts" subtitle="Actual parts usage details" amount={sumInvoiceItems(usedPartsItems)}>
+              {usedPartsItems.length ? usedPartsItems.map((item, index) => (
                 <InvoiceLine
                   key={item.id || index}
                   name={item.name}
@@ -625,7 +585,7 @@ export function InvoiceDetails({ id }) {
 
   return (
     <>
-      <PageHeader title={invoice.invoiceNumber} description="Invoice details, invoice items, payment history, overpayment protection, and due summary." />
+      <PageHeader title={invoice.invoiceNumber} description="Final invoice, payment collection, and receipt history for this repair." />
       <div className="grid gap-4 md:grid-cols-4">
         <Card><CardContent><p className="text-sm text-[var(--muted)]">Total</p><p className="mt-2 text-2xl font-bold">{formatCurrency(invoice.totalAmount)}</p></CardContent></Card>
         <Card><CardContent><p className="text-sm text-[var(--muted)]">Paid</p><p className="mt-2 text-2xl font-bold">{formatCurrency(invoice.paidAmount)}</p></CardContent></Card>
@@ -635,10 +595,116 @@ export function InvoiceDetails({ id }) {
       <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
         <div className="space-y-5">
           <InvoiceDocument invoice={invoice} items={items} />
-          <Card><CardHeader><CardTitle>Payment History</CardTitle></CardHeader><CardContent className="p-0"><Table><thead><tr><Th>Amount</Th><Th>Method</Th><Th>Status</Th><Th>Date</Th></tr></thead><tbody>{payments.map((payment, index) => <tr key={payment.id || index}><Td>{formatCurrency(payment.amount)}</Td><Td>{payment.method}</Td><Td><StatusBadge status={payment.status} /></Td><Td>{payment.collectedAt || payment.paidAt || payment.createdAt}</Td></tr>)}</tbody></Table></CardContent></Card>
         </div>
-        <Card><CardHeader><CardTitle>Collect Payment</CardTitle></CardHeader><CardContent><form className="space-y-3" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); setError(""); paymentMutation.mutate({ amount: Number(form.get("amount") || 0), method: form.get("method"), transactionReference: form.get("transactionReference") || undefined, notes: form.get("notes") || undefined }); }}><Input name="amount" type="number" placeholder="Amount" max={Number(invoice.dueAmount || 0)} /><Select name="method"><option>CASH</option><option>CARD</option><option>UPI</option><option>BANK_TRANSFER</option><option>WALLET</option></Select><Input name="transactionReference" placeholder="Transaction reference" /><Textarea name="notes" placeholder="Notes" />{error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}<Button className="w-full" disabled={paymentMutation.isPending || Number(invoice.dueAmount || 0) <= 0}>Collect Payment</Button></form>{(paymentCollected || Number(invoice.dueAmount || 0) <= 0) && (invoice.repairTicketId || invoice.ticket?.id) ? <Link className="mt-3 block" to={`/handover?ticketId=${invoice.repairTicketId || invoice.ticket?.id}`}><Button className="w-full" type="button" variant="secondary">Go to Handover</Button></Link> : null}</CardContent></Card>
+        <div className="space-y-5 xl:sticky xl:top-5 xl:self-start">
+          <Card>
+            <CardHeader>
+              <CardTitle>Collect Payment</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Amount Due</p>
+                    <p className="mt-1 text-3xl font-black text-slate-950">{formatCurrency(invoice.dueAmount)}</p>
+                    <p className="text-xs text-slate-600">{invoice.customer?.fullName || "Customer not set"}</p>
+                  </div>
+                  <StatusBadge status={invoice.status} />
+                </div>
+              </div>
+              <form
+                className="space-y-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  setError("");
+                  paymentMutation.mutate({
+                    amount: Number(form.get("amount") || 0),
+                    method: form.get("method"),
+                    transactionReference: form.get("transactionReference") || undefined,
+                    notes: form.get("notes") || undefined,
+                  });
+                }}
+              >
+                <Field label="Payment Amount">
+                  <Input
+                    name="amount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="Amount"
+                    defaultValue={Number(invoice.dueAmount || 0) || ""}
+                    max={Number(invoice.dueAmount || 0)}
+                  />
+                </Field>
+                <Field label="Payment Method">
+                  <Select name="method">
+                    <option>CASH</option>
+                    <option>CARD</option>
+                    <option>UPI</option>
+                    <option>BANK_TRANSFER</option>
+                    <option>WALLET</option>
+                  </Select>
+                </Field>
+                <Field label="Transaction Reference">
+                  <Input name="transactionReference" placeholder="UPI reference, card slip, or receipt number" />
+                </Field>
+                <Field label="Payment Notes">
+                  <Textarea name="notes" placeholder="Notes for this payment..." />
+                </Field>
+                {error ? <p className="text-sm text-[var(--danger)]">{error}</p> : null}
+                <Button className="w-full" disabled={paymentMutation.isPending || Number(invoice.dueAmount || 0) <= 0}>
+                  {paymentMutation.isPending ? "Collecting..." : "Collect Payment"}
+                </Button>
+              </form>
+              {(paymentCollected || Number(invoice.dueAmount || 0) <= 0) && (invoice.repairTicketId || invoice.ticket?.id) ? (
+                <Link className="mt-3 block" to={`/handover?ticketId=${invoice.repairTicketId || invoice.ticket?.id}`}>
+                  <Button className="w-full" type="button" variant="secondary">
+                    Go to Handover
+                  </Button>
+                </Link>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <PaymentHistory payments={payments} />
+        </div>
       </div>
     </>
+  );
+}
+
+function PaymentHistory({ payments }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Payment History</CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        {payments.length ? (
+          <div className="divide-y divide-[var(--border)]">
+            {payments.map((payment, index) => (
+              <div key={payment.id || index} className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900">{formatCurrency(payment.amount)}</p>
+                    <p className="text-xs text-[var(--muted)]">{payment.method || "Payment method not set"}</p>
+                  </div>
+                  <StatusBadge status={payment.status || "PAID"} />
+                </div>
+                <p className="mt-2 text-xs text-[var(--muted)]">{payment.collectedAt || payment.paidAt || payment.createdAt || "Date not recorded"}</p>
+                {payment.transactionReference ? (
+                  <p className="mt-1 break-words text-xs text-slate-600">Ref: {payment.transactionReference}</p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="p-4 text-sm text-[var(--muted)]">
+            No payment collected yet. Payment receipts will appear here after collection.
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

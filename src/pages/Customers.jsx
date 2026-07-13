@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/Form";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { billingApi, customersApi, repairApi } from "@/services/modules";
 import { formatCurrency, unwrapArray } from "@/utils/cn";
 
 export function Customers() {
   const [search, setSearch] = useState("");
+  const [searchParams] = useSearchParams();
   const normalizedSearch = search.trim();
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["customers", normalizedSearch],
@@ -28,12 +30,14 @@ export function Customers() {
   const repairTickets = unwrapArray(ticketsQuery.data, ["tickets"]);
   const ticketCustomers = uniqueTicketCustomers(repairTickets);
   const customers = normalizedSearch ? searchedCustomers : ticketCustomers;
+  const requestedTicketId = searchParams.get("ticketId") || "";
+  const workflowTicket = repairTickets.find((ticket) => ticket.id === requestedTicketId) || repairTickets[0] || null;
 
   return (
-    <>
+    <OperationsWorkflowPage current="customer" ticket={workflowTicket} ticketId={requestedTicketId}>
       <PageHeader
         title="Customers"
-        description="Search customer profiles, view details, billing ledger, invoices, and payments."
+        description="Customer information, device registration, and repair ticket creation."
         actions={<Link to="/repair/new"><Button><Plus className="h-4 w-4" />Create Repair</Button></Link>}
       />
       <Card className="mb-4">
@@ -61,7 +65,7 @@ export function Customers() {
           />
         </CardContent>
       </Card>
-    </>
+    </OperationsWorkflowPage>
   );
 }
 

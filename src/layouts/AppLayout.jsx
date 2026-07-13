@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Clock3, LockKeyhole, LogOut, Menu, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, Clock3, FolderKanban, LockKeyhole, LogOut, Menu, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Form";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +12,8 @@ import { openWhatsApp } from "@/utils/whatsapp";
 
 export function AppLayout() {
   const [open, setOpen] = useState(false);
+  const [operationsOpen, setOperationsOpen] = useState(true);
+  const [managementOpen, setManagementOpen] = useState(true);
   const location = useLocation();
   const { user, logout, hasRole, updateSubscription } = useAuth();
   const { allBranchesValue, branches, selectedBranchId, setSelectedBranchId } = useBranch();
@@ -114,22 +116,34 @@ export function AppLayout() {
           </div>
         ) : null}
         <nav className="min-h-0 flex-1 overflow-y-auto p-3 pb-4">
-          {visibleNavigation.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.label}
-                to={item.path}
-                onClick={() => setOpen(false)}
-                className={({ isActive }) =>
-                  cn("mb-1 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100", isActive && "bg-blue-50 text-[var(--primary)]")
-                }
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </NavLink>
-            );
-          })}
+          {user?.role === "ADMIN" ? (
+            <AdminSidebarNavigation
+              items={visibleNavigation}
+              pathname={location.pathname}
+              operationsOpen={operationsOpen}
+              setOperationsOpen={setOperationsOpen}
+              managementOpen={managementOpen}
+              setManagementOpen={setManagementOpen}
+              onNavigate={closeMobileSidebar}
+            />
+          ) : (
+            visibleNavigation.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.label}
+                  to={item.path}
+                  onClick={closeMobileSidebar}
+                  className={({ isActive }) =>
+                    cn("mb-1 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100", isActive && "bg-blue-50 text-[var(--primary)]")
+                  }
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </NavLink>
+              );
+            })
+          )}
           <Button variant="secondary" className="mt-3 w-full justify-start lg:hidden" onClick={logout}>
             <LogOut className="h-4 w-4" />
             Logout
@@ -189,6 +203,135 @@ export function AppLayout() {
       {isWorkspaceLocked ? <LockedWorkspaceOverlay subscription={subscription} user={user} updateSubscription={updateSubscription} /> : null}
     </div>
   );
+}
+
+const adminOperations = [
+  { label: "Customer", path: "/customers", sourcePath: "/customers" },
+  { label: "Estimate", path: "/repair/estimates", sourcePath: "/repair/estimates" },
+  { label: "Assignment", path: "/assignments", sourcePath: "/assignments" },
+  { label: "Repair", path: "/repair", sourcePath: "/repair" },
+  { label: "Billing", path: "/billing", sourcePath: "/billing" },
+  { label: "Handover", path: "/handover", sourcePath: "/handover" },
+];
+
+const adminManagement = [
+  { label: "Technician", path: "/staff", sourcePath: "/staff" },
+  { label: "Inventory", path: "/inventory", sourcePath: "/inventory" },
+];
+
+function AdminSidebarNavigation({
+  items,
+  pathname,
+  operationsOpen,
+  setOperationsOpen,
+  managementOpen,
+  setManagementOpen,
+  onNavigate,
+}) {
+  const byPath = useMemo(() => new Map(items.map((item) => [item.path, item])), [items]);
+  const dashboard = byPath.get("/dashboard");
+
+  return (
+    <>
+      {dashboard ? <SidebarLink item={dashboard} onNavigate={onNavigate} /> : null}
+
+      <button
+        type="button"
+        onClick={() => setOperationsOpen((value) => !value)}
+        className="mb-1 flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-black text-slate-700 hover:bg-slate-100"
+      >
+        <FolderKanban className="h-4 w-4" />
+        <span className="flex-1">Operations</span>
+        {operationsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      </button>
+
+      {operationsOpen ? (
+        <div className="mb-2 space-y-1 pl-3">
+          {adminOperations.map((operation) => {
+            const source = byPath.get(operation.sourcePath);
+            const Icon = source?.icon || FolderKanban;
+            const active = isAdminOperationActive(pathname, operation.path);
+            return (
+              <NavLink
+                key={operation.label}
+                to={operation.path}
+                onClick={onNavigate}
+                className={() =>
+                  cn(
+                    "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100",
+                    active && "bg-blue-50 text-[var(--primary)]"
+                  )
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {operation.label}
+              </NavLink>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={() => setManagementOpen((value) => !value)}
+        className="mb-1 flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-black text-slate-700 hover:bg-slate-100"
+      >
+        <FolderKanban className="h-4 w-4" />
+        <span className="flex-1">Management</span>
+        {managementOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+      </button>
+      {managementOpen ? (
+        <div className="mb-2 space-y-1 pl-3">
+          {adminManagement.map((entry) => {
+            const source = byPath.get(entry.sourcePath);
+            if (!source) return null;
+            const Icon = source.icon || FolderKanban;
+            const active = pathname === entry.path || pathname.startsWith(`${entry.path}/`);
+            return (
+              <NavLink
+                key={entry.label}
+                to={entry.path}
+                onClick={onNavigate}
+                className={() =>
+                  cn(
+                    "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100",
+                    active && "bg-blue-50 text-[var(--primary)]"
+                  )
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {entry.label}
+              </NavLink>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function SidebarLink({ item, onNavigate }) {
+  const Icon = item.icon;
+  return (
+    <NavLink
+      to={item.path}
+      onClick={onNavigate}
+      className={({ isActive }) =>
+        cn("mb-1 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100", isActive && "bg-blue-50 text-[var(--primary)]")
+      }
+    >
+      <Icon className="h-4 w-4" />
+      {item.label}
+    </NavLink>
+  );
+}
+
+function isAdminOperationActive(pathname, path) {
+  if (path === "/customers") return pathname.startsWith("/customers") || pathname === "/repair/new";
+  if (path === "/repair") {
+    return pathname === "/repair" || (pathname.startsWith("/repair/") && !pathname.startsWith("/repair/estimates") && pathname !== "/repair/new");
+  }
+  return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 function TrialWarningBanner({ subscription }) {
@@ -310,21 +453,55 @@ function paymentRequestId(subscription) {
   );
 }
 
+function paymentRequestStatus(subscription) {
+  return subscription?.metadata?.paymentRequest?.status || "";
+}
+
+function activationRequestSentKey(subscription) {
+  const requestId = paymentRequestId(subscription);
+  return requestId ? `kariger.activationRequestSent:${requestId}` : "";
+}
+
+function readActivationRequestSent(subscription) {
+  if (paymentRequestStatus(subscription) === "REQUESTED") return true;
+  const key = activationRequestSentKey(subscription);
+  if (!key) return false;
+  try {
+    return window.sessionStorage.getItem(key) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function rememberActivationRequestSent(subscription) {
+  const key = activationRequestSentKey(subscription);
+  if (!key) return;
+  try {
+    window.sessionStorage.setItem(key, "true");
+  } catch {
+    // The backend request remains the source of truth.
+  }
+}
+
 function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
   const [contacting, setContacting] = useState(false);
+  const [activationRequestSent, setActivationRequestSent] = useState(() => readActivationRequestSent(subscription));
   const isOwner = user?.role === "OWNER";
   const approvalPending = isApprovalPending(subscription);
   const supportWhatsApp = user?.business?.supportWhatsapp || import.meta.env.VITE_PAY_WHATSAPP;
-  const title = approvalPending ? "Approval Pending" : "Subscription Expired";
+  const requestSent = approvalPending && (activationRequestSent || paymentRequestStatus(subscription) === "REQUESTED");
+  const title = requestSent ? "Request Sent" : approvalPending ? "Approval Pending" : "Subscription Expired";
   const status = subscription?.effectiveStatus || subscription?.status || (approvalPending ? "APPROVAL_PENDING" : "EXPIRED");
-  const message = approvalPending
+  const message = requestSent
+    ? "Thank you. Your activation request has been sent to KARIGER.\n\nOur team will review it shortly, and your workspace will unlock automatically as soon as approval is complete."
+    : approvalPending
     ? "The Starter Trial limit has been reached.\n\nYour selected plan needs KARIGER approval before the workspace can continue."
     : `${lockReasonText(subscription?.trialExpiryReason)} Renew your subscription to continue using KARIGER.`;
   const handleContactOwner = async () => {
     setContacting(true);
     let messageSubscription = subscription;
     try {
-      if (!paymentRequestId(messageSubscription)) {
+      if (paymentRequestStatus(messageSubscription) !== "REQUESTED") {
         const response = await subscriptionApi.requestPayment({
           plan: messageSubscription?.plan || "STARTER",
           durationDays: 30,
@@ -347,7 +524,10 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
     setContacting(false);
     if (!opened) {
       window.alert("WhatsApp number is not configured.");
+      return;
     }
+    rememberActivationRequestSent(messageSubscription);
+    setActivationRequestSent(true);
   };
 
   return (
@@ -386,9 +566,14 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
 
         {approvalPending ? (
           <div className="mt-6">
-            <Button className="w-full" type="button" onClick={handleContactOwner} disabled={contacting}>
-              {contacting ? "Preparing Request..." : "Contact KARIGER Owner"}
+            <Button className="w-full" type="button" onClick={handleContactOwner} disabled={contacting || requestSent}>
+              {requestSent ? "Activation Request Sent" : contacting ? "Preparing Request..." : "Contact KARIGER Owner"}
             </Button>
+            {requestSent ? (
+              <p className="mt-3 rounded-md bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                No further action is needed right now. This page will update automatically after approval.
+              </p>
+            ) : null}
           </div>
         ) : isOwner ? (
           <div className="mt-6 grid gap-2 sm:grid-cols-2">

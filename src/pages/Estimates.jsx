@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { Timeline } from "@/components/ui/Timeline";
+import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { repairApi } from "@/services/modules";
 import { cn, formatCurrency, unwrapArray } from "@/utils/cn";
 import { firstObject } from "@/utils/data";
@@ -20,7 +21,7 @@ export function Estimates() {
   const preselectedTicketId = searchParams.get("ticketId") || "";
   const [selectedTicketId, setSelectedTicketId] = useState(preselectedTicketId);
   const { data, isLoading } = useQuery({ queryKey: ["repair", "estimate-candidates"], queryFn: () => repairApi.list({ limit: 100 }) });
-  const estimateStatuses = ["DIAGNOSING", "ESTIMATE_PENDING", "WAITING_APPROVAL"];
+  const estimateStatuses = ["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"];
   const allTickets = unwrapArray(data, ["tickets"]);
   const tickets = allTickets.filter((ticket) => estimateStatuses.includes(ticket.status));
   const estimateHistory = allTickets
@@ -33,7 +34,7 @@ export function Estimates() {
       return estimates.map((estimate) => ({ ...estimate, ticket }));
     })
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
-  const createCandidates = tickets.filter((ticket) => ["DIAGNOSING", "ESTIMATE_PENDING"].includes(ticket.status));
+  const createCandidates = tickets.filter((ticket) => ["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"].includes(ticket.status));
   const activeTicketId = createCandidates.some((ticket) => ticket.id === selectedTicketId) ? selectedTicketId : createCandidates[0]?.id || "";
   const mutation = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.createEstimate(ticketId, payload),
@@ -43,10 +44,12 @@ export function Estimates() {
   const createdEstimate = mutation.data?.data?.estimate;
   const visibleCreatedEstimate = createdEstimate;
   const visibleCreatedEstimateStatus = visibleCreatedEstimate?.status || createdEstimate?.status;
+  const workflowTicket = allTickets.find((ticket) => ticket.id === (preselectedTicketId || activeTicketId)) || allTickets[0] || null;
+  const createdEstimateTicketId = visibleCreatedEstimate?.repairTicketId || visibleCreatedEstimate?.ticketId || "";
 
   return (
-    <>
-      <PageHeader title="Repair Estimates" description="Create customer estimates and review estimate history." />
+    <OperationsWorkflowPage current="estimate" ticket={workflowTicket} ticketId={createdEstimateTicketId || preselectedTicketId || activeTicketId} showContinue={false}>
+      <PageHeader title="Repair Estimates" description="Initial diagnosis, estimated repair cost, customer discussion, and estimated delivery time." />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <div className="space-y-5">
           <Card>
@@ -66,9 +69,6 @@ export function Estimates() {
                           {latestEstimate.estimateNumber || "Open estimate"} · {formatCurrency(latestEstimate.totalAmount)}
                         </Link>
                       ) : null}
-                      {ticket.status === "WAITING_APPROVAL" && !latestEstimate?.id ? (
-                        <p className="mt-2 text-sm text-amber-700">Estimate created, but this response does not include an estimate id yet.</p>
-                      ) : null}
                     </div>
                     <StatusBadge status={ticket.status} />
                   </div>
@@ -77,7 +77,7 @@ export function Estimates() {
               })}
               {!tickets.length ? (
                 <p className="text-sm text-[var(--muted)]">
-                  {isLoading ? "Loading estimate candidates..." : "No tickets are currently in DIAGNOSING, ESTIMATE_PENDING, or WAITING_APPROVAL."}
+                  {isLoading ? "Loading estimate candidates..." : "No tickets are currently ready for estimate creation."}
                 </p>
               ) : null}
             </CardContent>
@@ -104,8 +104,8 @@ export function Estimates() {
                         <Button size="sm" variant="secondary" type="button">View Estimate</Button>
                       </Link>
                       {estimate.status === "APPROVED" ? (
-                        <Link to={`/repair/parts-usage?ticketId=${ticketId}`}>
-                          <Button size="sm" type="button">Go to Parts Usage</Button>
+                        <Link to={`/assignments?ticketId=${ticketId}`}>
+                          <Button size="sm" type="button">Go to Assignment</Button>
                         </Link>
                       ) : null}
                     </div>
@@ -165,17 +165,17 @@ export function Estimates() {
                 <div>
                   <StatusBadge status={visibleCreatedEstimateStatus} />
                   <p className="mt-2 font-semibold">Total: {formatCurrency(visibleCreatedEstimate.totalAmount)}</p>
-                  <p className="mt-1 text-[var(--muted)]">Estimate is done. Next step: technician records actual parts usage.</p>
+                  <p className="mt-1 text-[var(--muted)]">Estimate is approved. Next step: assign a technician.</p>
                 </div>
-                <Link to={`/repair/parts-usage?ticketId=${visibleCreatedEstimate.repairTicketId || visibleCreatedEstimate.ticketId || ""}`}>
-                  <Button className="w-full" type="button">View Parts Usage</Button>
+                <Link to={`/assignments?ticketId=${visibleCreatedEstimate.repairTicketId || visibleCreatedEstimate.ticketId || ""}`}>
+                  <Button className="w-full" type="button">Go to Assignment</Button>
                 </Link>
               </div>
             ) : null}
           </CardContent>
         </Card>
       </div>
-    </>
+    </OperationsWorkflowPage>
   );
 }
 
@@ -419,10 +419,10 @@ export function EstimateDetails({ id }) {
         <Card>
           <CardHeader><CardTitle>Next Step</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-[var(--muted)]">Estimate is a customer price snapshot. Actual parts cost is recorded by the technician in parts usage.</p>
+            <p className="text-sm text-[var(--muted)]">Estimate is approved. Assign a technician, then record repair work before parts usage.</p>
             {estimate.status === "APPROVED" && estimate.repairTicketId ? (
-              <Link to={`/repair/parts-usage?ticketId=${estimate.repairTicketId}`}>
-                <Button className="w-full" type="button">View Parts Usage</Button>
+              <Link to={`/assignments?ticketId=${estimate.repairTicketId}`}>
+                <Button className="w-full" type="button">Go to Assignment</Button>
               </Link>
             ) : null}
           </CardContent>

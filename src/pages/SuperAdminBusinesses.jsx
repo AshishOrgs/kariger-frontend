@@ -20,7 +20,14 @@ function ownerLabel(owner) {
 
 function planLabel(subscription) {
   if (!subscription) return "No plan";
+  if (subscription.metadata?.paymentRequest?.status === "REQUESTED") {
+    return `${subscription.plan || "No plan selected"} / APPROVAL REQUESTED`;
+  }
   return `${subscription.plan || "No plan selected"} / ${subscription.status}`;
+}
+
+function hasApprovalRequest(subscription) {
+  return subscription?.metadata?.paymentRequest?.status === "REQUESTED";
 }
 
 export function SuperAdminBusinesses() {
@@ -378,6 +385,7 @@ function formatAuditDate(value) {
 function SubscriptionAdminForm({ business, isSaving, onSave }) {
   const subscription = business?.subscription;
   const request = subscription?.metadata?.paymentRequest;
+  const approvalRequested = hasApprovalRequest(subscription);
   const [plan, setPlan] = useState(subscription?.plan || "STARTER");
   const [status, setStatus] = useState(subscription?.status || "NOT_SELECTED");
   const [startsAt, setStartsAt] = useState(dateInputValue(subscription?.startsAt));
@@ -445,7 +453,7 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
               <option value="PENDING">Pending</option>
               <option value="DONE">Done</option>
               <option value="ACTIVE">Active</option>
-              <option value="TRIALING">Trialing</option>
+              <option value="TRIALING">{approvalRequested ? "Trialing (approval requested)" : "Trialing"}</option>
               <option value="EXPIRED">Expired</option>
               <option value="SUSPENDED">Suspended</option>
               <option value="CANCELLED">Cancelled</option>
@@ -492,8 +500,16 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
             </p>
           </div>
           {request ? (
-            <div className="rounded-md border border-[var(--border)] bg-slate-50 p-4 md:col-span-2">
-              <p className="text-xs font-semibold uppercase text-[var(--muted)]">Owner request</p>
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 md:col-span-2">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-amber-800">Owner activation request</p>
+                  <p className="mt-1 text-xs font-medium text-amber-900">
+                    The trial is already running. Approve this request to activate the selected subscription plan.
+                  </p>
+                </div>
+                <StatusBadge status={request.status || "REQUESTED"} />
+              </div>
               <p className="mt-2 text-sm font-bold">{request.paymentRequestId || request.id || "Request ID missing"}</p>
               <p className="mt-2 text-sm font-medium">
                 {request.serviceName} · {request.durationDays} days · {formatCurrency(request.price)}
@@ -505,7 +521,7 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
           ) : null}
           <div className="flex flex-wrap gap-2 md:col-span-2">
             <Button type="button" disabled={isSaving} onClick={handleActivate}>
-              {isSaving ? "Activating..." : "Activate Subscription"}
+              {isSaving ? "Activating..." : approvalRequested ? "Approve Request & Activate" : "Activate Subscription"}
             </Button>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? "Saving..." : "Save Subscription"}

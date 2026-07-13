@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -13,28 +13,34 @@ import { cn, formatDate, formatCurrency, unwrapArray } from "@/utils/cn";
 import { ticketLabel } from "@/utils/ticketLabel";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
 import {
-  Play,
-  Pause,
-  CheckCircle,
   Save,
   Plus,
   X,
   Phone,
   User,
   Mail,
-  BadgeAlert,
-  Info,
-  DollarSign
+  Trash2,
+  Package,
+  ShoppingCart,
+  ClipboardList,
 } from "lucide-react";
 
 function getTicket(assignment) {
   return assignment.ticket || assignment.repairTicket || assignment.repair || assignment;
 }
 
+function getLatestEstimate(ticket) {
+  return ticket?.latestEstimate || ticket?.estimates?.[0] || null;
+}
+
 export function AssignedRepairs() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("assigned");
-  const [selectedTicketId, setSelectedTicketId] = useState(null);
+  const [searchParams] = useSearchParams();
+  const initialTab = ["assigned", "active", "completed"].includes(searchParams.get("tab"))
+    ? searchParams.get("tab")
+    : "assigned";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [selectedTicketId, setSelectedTicketId] = useState(searchParams.get("ticketId") || null);
 
   // 1. Fetch technician's assignment queue based on tab
   const queueQuery = useQuery({
@@ -51,14 +57,7 @@ export function AssignedRepairs() {
   });
   const ticket = ticketDetailQuery.data?.data?.ticket || ticketDetailQuery.data?.data || null;
 
-  // 3. Fetch inventory items for parts consumption
-  const itemsQuery = useQuery({
-    queryKey: ["inventory"],
-    queryFn: () => inventoryApi.list(),
-  });
-  const items = unwrapArray(itemsQuery.data, ["items"]);
-
-  // 4. Fetch selected ticket's parts usage history
+  // 3. Fetch selected ticket's consumed inventory history
   const partsUsageQuery = useQuery({
     queryKey: ["repair-ticket-parts-usage", selectedTicketId],
     queryFn: () => repairApi.partsUsage(selectedTicketId),
@@ -69,108 +68,74 @@ export function AssignedRepairs() {
   // Form states for execution details
   const [formState, setFormState] = useState({
     diagnosis: "",
-    repairNotes: "",
-    workPerformed: "",
-    laborCost: 0,
+    extraCost: "",
+    extraCostReason: "",
     estimatedCompletionTime: "",
-    repairRemarks: "",
-    internalNotes: "",
-  });
-
-  // Form states for parts usage input
-  const [partInput, setPartInput] = useState({
-    inventoryItemId: "",
-    quantity: 1,
-    notes: "",
   });
 
   // Automatically update form fields when selected ticket details load
   useEffect(() => {
     if (ticket) {
       setFormState({
-        diagnosis: ticket.diagnosis || "",
-        repairNotes: ticket.repairNotes || "",
-        workPerformed: ticket.workPerformed || "",
-        laborCost: ticket.laborCost || 0,
+        diagnosis: ticket.diagnosis || ticket.workPerformed || ticket.repairNotes || "",
+        extraCost: ticket.extraCost ? String(ticket.extraCost) : "",
+        extraCostReason: ticket.extraCostReason || "",
         estimatedCompletionTime: ticket.estimatedCompletionTime
           ? new Date(ticket.estimatedCompletionTime).toISOString().slice(0, 16)
           : "",
-        repairRemarks: ticket.repairRemarks || "",
-        internalNotes: ticket.internalNotes || "",
       });
     }
   }, [ticket]);
 
-  // Set first inventory item as default when items are loaded
-  useEffect(() => {
-    if (items.length > 0 && !partInput.inventoryItemId) {
-      setPartInput((prev) => ({ ...prev, inventoryItemId: items[0].id }));
-    }
-  }, [items, partInput.inventoryItemId]);
+  // Mutation: Save technician report and mark the repair as ready for delivery.
+  const submitReportMutation = useNotifyMutation({
+    mutationFn: async (payload) => {
+      await repairApi.updateExecution(selectedTicketId, payload);
 
-  // Mutation: Update Status
-  const statusMutation = useNotifyMutation({
-    mutationFn: ({ status, reason }) => repairApi.updateStatus(selectedTicketId, { status, reason }),
-    successMessage: "Repair status updated.",
+      if (ticket?.status === "READY_FOR_DELIVERY") {
+        return null;
+      }
+
+      if (["DIAGNOSING", "APPROVED", "WAITING_PARTS"].includes(ticket?.status)) {
+        await repairApi.updateStatus(selectedTicketId, {
+          status: "IN_REPAIR",
+          reason: "Technician submitted final repair report.",
+        });
+      }
+
+      if (["DIAGNOSING", "APPROVED", "WAITING_PARTS", "IN_REPAIR", "SENT_TO_VENDOR"].includes(ticket?.status)) {
+        await repairApi.updateStatus(selectedTicketId, {
+          status: "READY_FOR_DELIVERY",
+          reason: "Technician submitted final repair report. Repair is ready for delivery.",
+        });
+      }
+
+      return null;
+    },
+    successMessage: "Technician report submitted. Repair marked ready for delivery.",
     onSuccess: () => {
-      queryClient.invalidateQueries(["technician-assigned-repairs", activeTab]);
-      queryClient.invalidateQueries(["repair-ticket-detail", selectedTicketId]);
+      setActiveTab("completed");
+      queryClient.invalidateQueries({ queryKey: ["repair-ticket-detail", selectedTicketId] });
+      queryClient.invalidateQueries({ queryKey: ["repair-ticket-parts-usage", selectedTicketId] });
+      queryClient.invalidateQueries({ queryKey: ["technician-assigned-repairs"] });
     },
   });
 
-  // Mutation: Save Execution Details
-  const saveExecutionMutation = useNotifyMutation({
-    mutationFn: (payload) => repairApi.updateExecution(selectedTicketId, payload),
-    successMessage: "Execution details saved.",
-    onSuccess: () => {
-      queryClient.invalidateQueries(["repair-ticket-detail", selectedTicketId]);
-    },
-  });
-
-  // Mutation: Consume Parts
-  const consumePartsMutation = useNotifyMutation({
-    mutationFn: (payload) => repairApi.consumeParts(selectedTicketId, payload),
-    successMessage: "Parts consumed successfully.",
-    onSuccess: () => {
-      setPartInput((prev) => ({ ...prev, quantity: 1, notes: "" }));
-      queryClient.invalidateQueries(["repair-ticket-parts-usage", selectedTicketId]);
-      queryClient.invalidateQueries(["repair-ticket-detail", selectedTicketId]);
-    },
-  });
-
-  const handleSaveExecution = (e) => {
+  const handleSubmitReport = (e) => {
     e.preventDefault();
-    saveExecutionMutation.mutate({
+    submitReportMutation.mutate({
       diagnosis: formState.diagnosis || null,
-      repairNotes: formState.repairNotes || null,
-      workPerformed: formState.workPerformed || null,
-      laborCost: formState.laborCost ? Number(formState.laborCost) : 0,
+      extraCost: formState.extraCost === "" ? 0 : Number(formState.extraCost),
+      extraCostReason: formState.extraCostReason || null,
       estimatedCompletionTime: formState.estimatedCompletionTime
         ? new Date(formState.estimatedCompletionTime).toISOString()
         : null,
-      repairRemarks: formState.repairRemarks || null,
-      internalNotes: formState.internalNotes || null,
-    });
-  };
-
-  const handleConsumePart = (e) => {
-    e.preventDefault();
-    if (!partInput.inventoryItemId) return;
-    consumePartsMutation.mutate({
-      parts: [
-        {
-          inventoryItemId: partInput.inventoryItemId,
-          quantity: Number(partInput.quantity),
-          notes: partInput.notes || undefined,
-        },
-      ],
     });
   };
 
   const tabs = [
     { id: "assigned", name: "Assigned" },
     { id: "active", name: "Active" },
-    { id: "pending_review", name: "Pending Review" },
     { id: "completed", name: "Completed" },
   ];
 
@@ -178,7 +143,7 @@ export function AssignedRepairs() {
     <div>
       <PageHeader
         title="Technician Workspace"
-        description="Manage assigned repairs, log diagnostics, consume parts, and submit for quality review."
+        description="Manage assigned repairs, log diagnostics, consume parts, and submit the final repair report."
       />
 
       {/* Tab Header Navigation */}
@@ -366,130 +331,26 @@ export function AssignedRepairs() {
                   </div>
                 </div>
 
-                {/* Status Transitions Control Panel */}
-                <div className="border border-slate-100 rounded-lg p-4 bg-slate-50/50">
-                  <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 flex items-center gap-1.5">
-                    <Info className="h-3.5 w-3.5 text-slate-500" />
-                    Operational Status Controls
-                  </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {/* START REPAIR */}
-                    {(ticket.status === "DIAGNOSING" || ticket.status === "APPROVED") && (
-                      <Button
-                        size="sm"
-                        disabled={statusMutation.isPending}
-                        onClick={() =>
-                          statusMutation.mutate({
-                            status: "IN_REPAIR",
-                            reason: "Technician began repairing device.",
-                          })
-                        }
-                        className="bg-emerald-600 border-emerald-600 text-white hover:bg-emerald-700"
-                      >
-                        <Play className="h-4 w-4 fill-current" />
-                        Start Repair
-                      </Button>
-                    )}
-
-                    {/* PAUSE WORK (Waiting Parts) */}
-                    {ticket.status === "IN_REPAIR" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={statusMutation.isPending}
-                        onClick={() =>
-                          statusMutation.mutate({
-                            status: "WAITING_PARTS",
-                            reason: "Awaiting replacement parts from inventory.",
-                          })
-                        }
-                      >
-                        <Pause className="h-4 w-4" />
-                        Pause Work
-                      </Button>
-                    )}
-
-                    {/* RESUME WORK (from Pause or Vendor) */}
-                    {(ticket.status === "WAITING_PARTS" || ticket.status === "SENT_TO_VENDOR") && (
-                      <Button
-                        size="sm"
-                        disabled={statusMutation.isPending}
-                        onClick={() =>
-                          statusMutation.mutate({
-                            status: "IN_REPAIR",
-                            reason: "Technician resumed repairing device.",
-                          })
-                        }
-                      >
-                        <Play className="h-4 w-4 fill-current" />
-                        Resume Work
-                      </Button>
-                    )}
-
-                    {/* SUBMIT FOR REVIEW */}
-                    {(ticket.status === "IN_REPAIR" || ticket.status === "SENT_TO_VENDOR") && (
-                      <Button
-                        size="sm"
-                        disabled={statusMutation.isPending}
-                        onClick={() =>
-                          statusMutation.mutate({
-                            status: "READY_FOR_REVIEW",
-                            reason: "Repair completed. Submitted for Admin review.",
-                          })
-                        }
-                        className="bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700"
-                      >
-                        <CheckCircle className="h-4 w-4" />
-                        Submit for Review
-                      </Button>
-                    )}
-
-                    {/* RESUME WORK IF PENDING REVIEW OR DELIVERED */}
-                    {ticket.status === "READY_FOR_REVIEW" && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        disabled={statusMutation.isPending}
-                        onClick={() =>
-                          statusMutation.mutate({
-                            status: "IN_REPAIR",
-                            reason: "Reopened from review to make additional adjustments.",
-                          })
-                        }
-                      >
-                        Reopen to Edit
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
                 {/* Financial Summary Snapshot */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 border border-slate-100 p-4 rounded-lg">
                   <div className="bg-slate-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-500">Labor Cost</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(ticket.laborCost)}</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Labor Cost</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(getLatestEstimate(ticket)?.laborAmount)}</p>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-500">Parts Cost</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(ticket.partsCost)}</p>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-500">Vendor Cost</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(ticket.vendorCost)}</p>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-500">Total Cost</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(ticket.totalRepairCost)}</p>
-                  </div>
-                  <div className="bg-slate-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-500">Invoice Amount</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(ticket.finalInvoiceAmount)}</p>
+                    <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Parts Cost</p>
+                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(getLatestEstimate(ticket)?.partsAmount)}</p>
                   </div>
                   <div className="bg-indigo-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-indigo-500">Profit Est.</p>
-                    <p className="text-sm font-bold text-indigo-700 mt-1">{formatCurrency(ticket.profitEstimate)}</p>
+                    <p className="text-[10px] uppercase font-bold text-indigo-500">Estimate Total</p>
+                    <p className="text-sm font-bold text-indigo-700 mt-1">{formatCurrency(getLatestEstimate(ticket)?.totalAmount)}</p>
                   </div>
                 </div>
+
+                <ConsumedInventorySummary
+                  ticket={ticket}
+                  partsUsages={partsUsages}
+                />
 
                 {/* Execution Details Form */}
                 <Card>
@@ -500,207 +361,63 @@ export function AssignedRepairs() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <form onSubmit={handleSaveExecution} className="space-y-4">
+                    <form onSubmit={handleSubmitReport} className="space-y-4">
                       <Field label="Diagnosis & Issue Findings">
                         <Textarea
-                          placeholder="Describe diagnosed issues and hardware/software faults..."
+                          placeholder="Write diagnosis, repair work, observations, and completion remarks..."
                           value={formState.diagnosis}
                           onChange={(e) => setFormState({ ...formState, diagnosis: e.target.value })}
                         />
                       </Field>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Field label="Labor Cost ($)">
+                      <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+                        <Field label="Extra Cost">
                           <Input
                             type="number"
                             min="0"
                             step="0.01"
-                            value={formState.laborCost}
-                            onChange={(e) => setFormState({ ...formState, laborCost: e.target.value })}
+                            placeholder="0.00"
+                            value={formState.extraCost}
+                            onChange={(e) => setFormState({ ...formState, extraCost: e.target.value })}
                           />
                         </Field>
-
-                        <Field label="Est. Completion Time">
+                        <Field label="Why Extra Cost?">
                           <Input
-                            type="datetime-local"
-                            value={formState.estimatedCompletionTime}
-                            onChange={(e) => setFormState({ ...formState, estimatedCompletionTime: e.target.value })}
+                            placeholder="Example: Extra display fitting work, connector repair, urgent service..."
+                            value={formState.extraCostReason}
+                            onChange={(e) => setFormState({ ...formState, extraCostReason: e.target.value })}
                           />
                         </Field>
                       </div>
 
-                      <Field label="Work Performed">
-                        <Textarea
-                          placeholder="Describe the action and repairs performed on the device..."
-                          value={formState.workPerformed}
-                          onChange={(e) => setFormState({ ...formState, workPerformed: e.target.value })}
-                        />
-                      </Field>
-
-                      <Field label="Repair Notes & Steps">
-                        <Textarea
-                          placeholder="Internal step-by-step repair logs..."
-                          value={formState.repairNotes}
-                          onChange={(e) => setFormState({ ...formState, repairNotes: e.target.value })}
-                        />
-                      </Field>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <Field label="Repair Remarks (Customer Facing)">
-                          <Textarea
-                            placeholder="Add remarks that will display on the customer invoice..."
-                            value={formState.repairRemarks}
-                            onChange={(e) => setFormState({ ...formState, repairRemarks: e.target.value })}
-                          />
-                        </Field>
-
-                        <Field label="Internal Notes (Staff Only)">
-                          <Textarea
-                            placeholder="Private technical insights or warnings..."
-                            value={formState.internalNotes}
-                            onChange={(e) => setFormState({ ...formState, internalNotes: e.target.value })}
-                          />
-                        </Field>
-                      </div>
+                      <ClearDateTimePicker
+                        value={formState.estimatedCompletionTime}
+                        onChange={(value) => setFormState({ ...formState, estimatedCompletionTime: value })}
+                      />
 
                       <Button
                         type="submit"
-                        disabled={saveExecutionMutation.isPending}
+                        disabled={submitReportMutation.isPending || partsUsages.length === 0}
                         className="w-full flex items-center justify-center gap-2"
                       >
-                        {saveExecutionMutation.isPending ? (
+                        {submitReportMutation.isPending ? (
                           <>
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                            Saving...
+                            Submitting...
                           </>
                         ) : (
                           <>
                             <Save className="h-4 w-4" />
-                            Save Execution Details
+                            {partsUsages.length ? "Submit Final Repair Report" : "Use Item Parts Before Submit"}
                           </>
                         )}
                       </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-
-                {/* Parts Usage Console Section */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-slate-700">
-                      <Plus className="h-4 w-4 text-[var(--primary)]" />
-                      Parts Usage Console
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {/* Add Part Form */}
-                    <form onSubmit={handleConsumePart} className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end bg-slate-50 p-4 rounded-lg border border-slate-100">
-                      <div className="sm:col-span-6">
-                        <Field label="Select Inventory Part">
-                          <Select
-                            value={partInput.inventoryItemId}
-                            onChange={(e) => setPartInput({ ...partInput, inventoryItemId: e.target.value })}
-                          >
-                            <option value="" disabled>-- Select Part --</option>
-                            {items.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.sku} · {item.partName} ({item.stockQuantity} in stock)
-                              </option>
-                            ))}
-                          </Select>
-                        </Field>
-                      </div>
-
-                      <div className="sm:col-span-3">
-                        <Field label="Quantity">
-                          <Input
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={partInput.quantity}
-                            onChange={(e) => setPartInput({ ...partInput, quantity: e.target.value })}
-                          />
-                        </Field>
-                      </div>
-
-                      <div className="sm:col-span-12 mt-2">
-                        <Field label="Parts Usage Notes (optional)">
-                          <Input
-                            placeholder="Reason or notes for parts utilization..."
-                            value={partInput.notes}
-                            onChange={(e) => setPartInput({ ...partInput, notes: e.target.value })}
-                          />
-                        </Field>
-                      </div>
-
-                      <div className="sm:col-span-12 mt-2">
-                        <Button
-                          type="submit"
-                          disabled={consumePartsMutation.isPending || !partInput.inventoryItemId}
-                          className="w-full"
-                        >
-                          {consumePartsMutation.isPending ? "Consuming..." : "Consume Parts"}
-                        </Button>
-                      </div>
-                    </form>
-
-                    {/* Parts History table */}
-                    <div className="mt-4">
-                      <h4 className="text-xs font-bold text-slate-600 mb-2 uppercase tracking-wide">
-                        Consumed Parts List
-                      </h4>
                       {partsUsages.length === 0 ? (
-                        <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded text-center">
-                          No parts have been consumed for this repair ticket yet.
+                        <p className="text-center text-xs text-slate-500">
+                          Use item parts first so this report is submitted with clear repair consumption history.
                         </p>
-                      ) : (
-                        <div className="border border-slate-100 rounded-md overflow-hidden">
-                          <Table>
-                            <thead>
-                              <tr className="bg-slate-50">
-                                <Th className="py-2 text-[11px]">Part</Th>
-                                <Th className="py-2 text-[11px] text-right">Qty</Th>
-                                <Th className="py-2 text-[11px] text-right">Unit Cost</Th>
-                                <Th className="py-2 text-[11px] text-right">Total</Th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {partsUsages.map((usage, idx) => (
-                                <tr key={usage.id || idx} className="border-t border-slate-100">
-                                  <Td className="py-2 text-xs font-medium">
-                                    <div>
-                                      {usage.inventoryItem?.partName || usage.partName}
-                                      {usage.notes && (
-                                        <span className="block text-[10px] text-slate-500 font-normal italic">
-                                          Note: {usage.notes}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </Td>
-                                  <Td className="py-2 text-xs text-right text-slate-600">
-                                    {String(usage.quantity)}
-                                  </Td>
-                                  <Td className="py-2 text-xs text-right text-slate-600 font-mono">
-                                    {formatCurrency(usage.unitCost)}
-                                  </Td>
-                                  <Td className="py-2 text-xs text-right font-bold font-mono">
-                                    {formatCurrency(usage.totalCost || Number(usage.quantity) * Number(usage.unitCost))}
-                                  </Td>
-                                </tr>
-                              ))}
-                              <tr className="bg-slate-50/50 border-t border-slate-200">
-                                <td colSpan={3} className="py-2 px-3 text-xs font-bold text-right text-slate-700">
-                                  Cumulative Parts Cost:
-                                </td>
-                                <td className="py-2 px-3 text-xs font-extrabold text-right font-mono text-indigo-700">
-                                  {formatCurrency(ticket.partsCost)}
-                                </td>
-                              </tr>
-                            </tbody>
-                          </Table>
-                        </div>
-                      )}
-                    </div>
+                      ) : null}
+                    </form>
                   </CardContent>
                 </Card>
               </div>
@@ -712,3 +429,595 @@ export function AssignedRepairs() {
   );
 }
 
+export function TechnicianInventory() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const ticketIdFromUrl = searchParams.get("ticketId") || "";
+  const isRepairUsageMode = Boolean(ticketIdFromUrl);
+  const [selectedTicketId, setSelectedTicketId] = useState(ticketIdFromUrl);
+  const [partInput, setPartInput] = useState({
+    inventoryItemId: "",
+    quantity: 1,
+    notes: "",
+  });
+  const [selectedParts, setSelectedParts] = useState([]);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const queueQueries = useQueries({
+    queries: ["assigned", "active"].map((statusGroup) => ({
+      queryKey: ["technician-assigned-repairs", statusGroup],
+      queryFn: () => assignmentsApi.queue({ statusGroup, page: 1, limit: 50, sort: "priority" }),
+    })),
+  });
+  const tickets = uniqueTickets(
+    queueQueries.flatMap((query) => query.data?.data?.assignments || []).map(getTicket)
+  );
+  const activeTicketId = selectedTicketId || "";
+  const ticketDetailQuery = useQuery({
+    queryKey: ["repair-ticket-detail", activeTicketId],
+    queryFn: () => repairApi.get(activeTicketId),
+    enabled: Boolean(activeTicketId),
+  });
+  const ticket = ticketDetailQuery.data?.data?.ticket || ticketDetailQuery.data?.data || tickets.find((item) => item.id === activeTicketId) || null;
+  const itemsQuery = useQuery({
+    queryKey: ["inventory"],
+    queryFn: () => inventoryApi.list(),
+  });
+  const items = unwrapArray(itemsQuery.data, ["items"]);
+  const visibleItems = items.filter((item) => {
+    const value = inventorySearch.trim().toLowerCase();
+    if (!value) return true;
+    return [item.partName, item.sku, item.category, item.barcode]
+      .filter(Boolean)
+      .some((field) => String(field).toLowerCase().includes(value));
+  });
+  const partsUsageQuery = useQuery({
+    queryKey: ["repair-ticket-parts-usage", activeTicketId],
+    queryFn: () => repairApi.partsUsage(activeTicketId),
+    enabled: Boolean(activeTicketId),
+  });
+  const partsUsages = unwrapArray(partsUsageQuery.data, ["partsUsage", "usages", "usage"]);
+
+  useEffect(() => {
+    if (items.length > 0 && !partInput.inventoryItemId) {
+      setPartInput((prev) => ({ ...prev, inventoryItemId: items[0].id }));
+    }
+  }, [items, partInput.inventoryItemId]);
+
+  const consumePartsMutation = useNotifyMutation({
+    mutationFn: (payload) => repairApi.consumeParts(activeTicketId, payload),
+    successMessage: "Inventory parts used successfully.",
+    onSuccess: () => {
+      setPartInput((prev) => ({ ...prev, quantity: 1, notes: "" }));
+      setSelectedParts([]);
+      queryClient.invalidateQueries({ queryKey: ["repair-ticket-parts-usage", activeTicketId] });
+      queryClient.invalidateQueries({ queryKey: ["repair-ticket-detail", activeTicketId] });
+      queryClient.invalidateQueries({ queryKey: ["inventory"] });
+      queryClient.invalidateQueries({ queryKey: ["technician-assigned-repairs"] });
+      navigate(`/technician/repairs?tab=active&ticketId=${activeTicketId}`);
+    },
+  });
+
+  const handleAddPart = (event) => {
+    event.preventDefault();
+    if (!partInput.inventoryItemId) return;
+    const item = items.find((entry) => entry.id === partInput.inventoryItemId);
+    if (!item) return;
+    const quantity = Number(partInput.quantity || 0);
+    if (quantity <= 0) return;
+    setSelectedParts((current) => [
+      ...current,
+      {
+        key: `${item.id}-${Date.now()}-${current.length}`,
+        inventoryItemId: item.id,
+        partName: item.partName,
+        sku: item.sku,
+        stockQuantity: item.stockQuantity,
+        unitCost: item.unitCost,
+        quantity,
+        notes: partInput.notes,
+      },
+    ]);
+    setPartInput({ inventoryItemId: item.id, quantity: 1, notes: "" });
+  };
+
+  const handleRemovePart = (key) => {
+    setSelectedParts((current) => current.filter((part) => part.key !== key));
+  };
+
+  const handleUseSelectedParts = () => {
+    if (!activeTicketId || selectedParts.length === 0) return;
+    consumePartsMutation.mutate({
+      parts: selectedParts.map((part) => ({
+        inventoryItemId: part.inventoryItemId,
+        quantity: Number(part.quantity),
+        notes: part.notes || undefined,
+      })),
+    });
+  };
+
+  return (
+    <div className="space-y-5">
+      {isRepairUsageMode ? (
+        <>
+          <PageHeader
+            title="Use Item Parts"
+            description="Select parts from inventory and attach them to the selected repair ticket."
+          />
+          <Card className="border-l-4 border-l-[var(--primary)]">
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-[var(--primary)]">Repair Ticket</p>
+                  <h2 className="text-lg font-bold text-slate-950">Parts Used For This Repair</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Every item used here will be saved against this ticket and shown in the technician report.
+                  </p>
+                </div>
+                {ticket ? (
+                  <div className="rounded-lg bg-slate-50 px-4 py-3 text-right">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Selected Repair</p>
+                    <p className="text-sm font-bold text-slate-900">{ticketLabel(ticket)}</p>
+                    <p className="text-xs text-slate-500">{ticket.customer?.fullName || ticket.title || "Customer not set"}</p>
+                  </div>
+                ) : null}
+              </div>
+              <Field label="Repair Ticket">
+                <Select value={activeTicketId} onChange={(event) => setSelectedTicketId(event.target.value)} disabled={!tickets.length}>
+                  <option value="" disabled>-- Select Repair Ticket --</option>
+                  {tickets.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {ticketLabel(item)}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              {!tickets.length ? (
+                <p className="text-sm text-[var(--muted)]">No assigned repair is ready for parts usage.</p>
+              ) : null}
+            </CardContent>
+          </Card>
+          <TechnicianInventoryUsePanel
+            ticket={ticket}
+            items={visibleItems}
+            inventorySearch={inventorySearch}
+            setInventorySearch={setInventorySearch}
+            partsUsages={partsUsages}
+            partInput={partInput}
+            setPartInput={setPartInput}
+            selectedParts={selectedParts}
+            onAddPart={handleAddPart}
+            onRemovePart={handleRemovePart}
+            onUseSelectedParts={handleUseSelectedParts}
+            isConsuming={consumePartsMutation.isPending}
+          />
+        </>
+      ) : (
+        <TechnicianInventoryCatalog
+          items={visibleItems}
+          inventorySearch={inventorySearch}
+          setInventorySearch={setInventorySearch}
+        />
+      )}
+    </div>
+  );
+}
+
+function TechnicianInventoryCatalog({ items, inventorySearch, setInventorySearch }) {
+  return (
+    <>
+      <PageHeader
+        title="Inventory"
+        description="View available branch inventory. To use parts for a repair, open the repair from My Repairs."
+      />
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Package className="h-5 w-5 text-[var(--primary)]" />
+            Available Inventory
+          </CardTitle>
+          <p className="mt-1 text-sm text-slate-500">
+            This page is read-only for technicians. It is only for checking stock availability.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Search Inventory">
+            <Input
+              placeholder="Search by item name, SKU, category, or barcode"
+              value={inventorySearch}
+              onChange={(event) => setInventorySearch(event.target.value)}
+            />
+          </Field>
+
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <Table>
+              <thead>
+                <tr className="bg-slate-50">
+                  <Th>Item</Th>
+                  <Th>SKU</Th>
+                  <Th>Category</Th>
+                  <Th>Available Stock</Th>
+                  <Th>Unit Cost</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id}>
+                    <Td>
+                      <div className="font-semibold text-slate-900">{item.partName}</div>
+                      {item.barcode ? <div className="text-xs text-slate-500">Barcode: {item.barcode}</div> : null}
+                    </Td>
+                    <Td>{item.sku || "Not set"}</Td>
+                    <Td>{item.category || "General"}</Td>
+                    <Td>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+                        {String(item.stockQuantity)}
+                      </span>
+                    </Td>
+                    <Td>{formatCurrency(item.unitCost)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            {!items.length ? (
+              <div className="p-8 text-center">
+                <Package className="mx-auto h-10 w-10 text-slate-300" />
+                <p className="mt-3 text-sm font-semibold text-slate-700">No inventory found.</p>
+                <p className="mt-1 text-xs text-slate-500">Try another search or contact Admin.</p>
+              </div>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+function ConsumedInventorySummary({ ticket, partsUsages }) {
+  const partsTotal = partsUsages.reduce((sum, usage) => sum + Number(usage.totalCost || Number(usage.quantity || 0) * Number(usage.unitCost || 0)), 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-slate-700">
+          <Plus className="h-4 w-4 text-[var(--primary)]" />
+          Consumed Inventory
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+          <p className="text-sm font-semibold text-slate-800">Need inventory parts for this repair?</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Open Inventory to select available stock. The repair will store consumed parts and inventory stock will update automatically.
+          </p>
+          <Link to={`/technician/inventory?ticketId=${ticket?.id || ""}`}>
+            <Button type="button" className="mt-3 w-full" disabled={!ticket?.id}>
+              Use Item Parts
+            </Button>
+          </Link>
+        </div>
+        <ConsumedPartsTable partsUsages={partsUsages} total={partsTotal} emptyText="No inventory parts have been consumed for this repair yet." />
+      </CardContent>
+    </Card>
+  );
+}
+
+function TechnicianInventoryUsePanel({
+  ticket,
+  items,
+  inventorySearch,
+  setInventorySearch,
+  partsUsages,
+  partInput,
+  setPartInput,
+  selectedParts,
+  onAddPart,
+  onRemovePart,
+  onUseSelectedParts,
+  isConsuming,
+}) {
+  const selectedTotal = selectedParts.reduce((sum, part) => sum + Number(part.quantity || 0) * Number(part.unitCost || 0), 0);
+  const partsTotal = partsUsages.reduce((sum, usage) => sum + Number(usage.totalCost || Number(usage.quantity || 0) * Number(usage.unitCost || 0)), 0);
+
+  return (
+    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_430px]">
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Package className="h-5 w-5 text-[var(--primary)]" />
+            Select Used Item Parts
+          </CardTitle>
+          <p className="mt-1 text-sm text-slate-500">Search stock and choose parts used for this repair ticket.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Field label="Search Available Parts">
+            <Input
+              placeholder="Search by item name, SKU, category, or barcode"
+              value={inventorySearch}
+              onChange={(event) => setInventorySearch(event.target.value)}
+            />
+          </Field>
+
+          <div className="max-h-72 overflow-auto rounded-lg border border-slate-200">
+            <Table>
+              <thead>
+                <tr className="bg-slate-50">
+                  <Th>Available Part</Th>
+                  <Th>Stock</Th>
+                  <Th>Unit Cost</Th>
+                  <Th>Action</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className={partInput.inventoryItemId === item.id ? "bg-blue-50/70" : ""}>
+                    <Td>
+                      <div className="font-semibold text-slate-900">{item.partName}</div>
+                      <div className="text-xs text-slate-500">{item.sku || "No SKU"}{item.category ? ` · ${item.category}` : ""}</div>
+                    </Td>
+                    <Td>
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">
+                        {String(item.stockQuantity)}
+                      </span>
+                    </Td>
+                    <Td>{formatCurrency(item.unitCost)}</Td>
+                    <Td>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={partInput.inventoryItemId === item.id ? "primary" : "secondary"}
+                        disabled={!ticket?.id}
+                        onClick={() => setPartInput({ ...partInput, inventoryItemId: item.id })}
+                      >
+                        {partInput.inventoryItemId === item.id ? "Selected" : "Select"}
+                      </Button>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            {!items.length ? <p className="p-4 text-sm text-slate-500">No available inventory parts found.</p> : null}
+          </div>
+
+          <form onSubmit={onAddPart} className="rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-[var(--primary)]" />
+              <p className="text-sm font-bold text-slate-900">Add Selected Part To Cart</p>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
+              <div className="sm:col-span-7">
+                <Field label="Selected Inventory Part">
+                  <Select
+                    value={partInput.inventoryItemId}
+                    onChange={(event) => setPartInput({ ...partInput, inventoryItemId: event.target.value })}
+                    disabled={!ticket?.id || !items.length}
+                  >
+                    <option value="" disabled>-- Select Part --</option>
+                    {items.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.sku} · {item.partName} ({item.stockQuantity} available)
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+
+              <div className="sm:col-span-5">
+                <Field label="Quantity Used">
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={partInput.quantity}
+                    disabled={!ticket?.id}
+                    onChange={(event) => setPartInput({ ...partInput, quantity: event.target.value })}
+                  />
+                </Field>
+              </div>
+
+              <div className="sm:col-span-12">
+                <Field label="Usage Note (Optional)">
+                  <Input
+                    placeholder="Example: Replaced damaged display connector"
+                    value={partInput.notes}
+                    disabled={!ticket?.id}
+                    onChange={(event) => setPartInput({ ...partInput, notes: event.target.value })}
+                  />
+                </Field>
+              </div>
+
+              <div className="sm:col-span-12">
+                <Button
+                  type="submit"
+                  disabled={!partInput.inventoryItemId || !ticket?.id}
+                  className="w-full"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add To Cart
+                </Button>
+              </div>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-5">
+        <Card className="sticky top-5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ShoppingCart className="h-5 w-5 text-[var(--primary)]" />
+              Review Parts For This Ticket
+            </CardTitle>
+            <p className="mt-1 text-sm text-slate-500">
+              These parts will be consumed against {ticket ? ticketLabel(ticket) : "the selected repair"}.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-slate-200">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-3">
+                <div>
+                  <p className="text-sm font-bold text-slate-900">Cart Items</p>
+                  <p className="text-xs text-slate-500">Remove wrong items before confirming.</p>
+                </div>
+                <p className="text-sm font-black text-slate-950">{formatCurrency(selectedTotal)}</p>
+              </div>
+              {selectedParts.length ? (
+                <div className="divide-y divide-slate-100">
+                  {selectedParts.map((part) => (
+                    <div key={part.key} className="flex items-start justify-between gap-3 p-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900">{part.partName}</p>
+                        <p className="text-xs text-slate-500">{part.sku} · Qty {part.quantity} · {formatCurrency(Number(part.quantity || 0) * Number(part.unitCost || 0))}</p>
+                        {part.notes ? <p className="mt-1 text-xs italic text-slate-500">Note: {part.notes}</p> : null}
+                      </div>
+                      <Button type="button" size="sm" variant="secondary" onClick={() => onRemovePart(part.key)}>
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-5 text-center">
+                  <ShoppingCart className="mx-auto h-8 w-8 text-slate-300" />
+                  <p className="mt-2 text-sm font-semibold text-slate-700">No parts in cart yet.</p>
+                  <p className="mt-1 text-xs text-slate-500">Select a part from the left and add it here.</p>
+                </div>
+              )}
+              <div className="border-t border-slate-200 p-3">
+                <Button
+                  type="button"
+                  disabled={isConsuming || !ticket?.id || selectedParts.length === 0}
+                  className="w-full"
+                  onClick={onUseSelectedParts}
+                >
+                  {isConsuming ? "Saving Used Parts..." : "Save Used Parts To Ticket"}
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <ClipboardList className="h-5 w-5 text-slate-500" />
+              Repair Consumption History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ConsumedPartsTable partsUsages={partsUsages} total={partsTotal || ticket?.partsCost} emptyText="No inventory consumption recorded yet." />
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function ConsumedPartsTable({ partsUsages, total, emptyText }) {
+  if (partsUsages.length === 0) {
+    return (
+      <p className="text-xs text-slate-500 italic bg-slate-50 p-3 rounded text-center">
+        {emptyText}
+      </p>
+    );
+  }
+
+  return (
+    <div className="border border-slate-100 rounded-md overflow-hidden">
+      <Table>
+        <thead>
+          <tr className="bg-slate-50">
+            <Th className="py-2 text-[11px]">Inventory Item</Th>
+            <Th className="py-2 text-[11px] text-right">Qty</Th>
+            <Th className="py-2 text-[11px] text-right">Unit Cost</Th>
+            <Th className="py-2 text-[11px] text-right">Total</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {partsUsages.map((usage, index) => (
+            <tr key={usage.id || index} className="border-t border-slate-100">
+              <Td className="py-2 text-xs font-medium">
+                <div>
+                  {usage.inventoryItem?.partName || usage.partName}
+                  {usage.notes ? (
+                    <span className="block text-[10px] text-slate-500 font-normal italic">
+                      Note: {usage.notes}
+                    </span>
+                  ) : null}
+                </div>
+              </Td>
+              <Td className="py-2 text-xs text-right text-slate-600">
+                {String(usage.quantity)}
+              </Td>
+              <Td className="py-2 text-xs text-right text-slate-600 font-mono">
+                {formatCurrency(usage.unitCost)}
+              </Td>
+              <Td className="py-2 text-xs text-right font-bold font-mono">
+                {formatCurrency(usage.totalCost || Number(usage.quantity) * Number(usage.unitCost))}
+              </Td>
+            </tr>
+          ))}
+          <tr className="bg-slate-50/50 border-t border-slate-200">
+            <td colSpan={3} className="py-2 px-3 text-xs font-bold text-right text-slate-700">
+              Total Parts Cost:
+            </td>
+            <td className="py-2 px-3 text-xs font-extrabold text-right font-mono text-indigo-700">
+              {formatCurrency(total)}
+            </td>
+          </tr>
+        </tbody>
+      </Table>
+    </div>
+  );
+}
+
+function ClearDateTimePicker({ value, onChange }) {
+  const date = value?.slice(0, 10) || "";
+  const hour24 = value ? Number(value.slice(11, 13)) : 12;
+  const minute = value?.slice(14, 16) || "00";
+  const period = hour24 >= 12 ? "PM" : "AM";
+  const hour12 = String(hour24 % 12 || 12).padStart(2, "0");
+  const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
+
+  const updateValue = ({ nextDate = date, nextHour = hour12, nextMinute = minute, nextPeriod = period }) => {
+    if (!nextDate) {
+      onChange("");
+      return;
+    }
+    let nextHour24 = Number(nextHour) % 12;
+    if (nextPeriod === "PM") nextHour24 += 12;
+    onChange(`${nextDate}T${String(nextHour24).padStart(2, "0")}:${nextMinute}`);
+  };
+
+  return (
+    <Field label="Estimated Completion Time">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_90px_90px_90px]">
+        <Input type="date" value={date} onChange={(event) => updateValue({ nextDate: event.target.value })} />
+        <Select value={hour12} onChange={(event) => updateValue({ nextHour: event.target.value })}>
+          {Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, "0")).map((hour) => (
+            <option key={hour} value={hour}>{hour}</option>
+          ))}
+        </Select>
+        <Select value={minute} onChange={(event) => updateValue({ nextMinute: event.target.value })}>
+          {minutes.map((item) => (
+            <option key={item} value={item}>{item}</option>
+          ))}
+        </Select>
+        <Select value={period} onChange={(event) => updateValue({ nextPeriod: event.target.value })}>
+          <option>AM</option>
+          <option>PM</option>
+        </Select>
+      </div>
+      <p className="mt-1 text-xs text-[var(--muted)]">Date · Hour · Minute · AM/PM</p>
+    </Field>
+  );
+}
+
+function uniqueTickets(tickets) {
+  const map = new Map();
+  for (const ticket of tickets) {
+    if (ticket?.id) map.set(ticket.id, ticket);
+  }
+  return [...map.values()];
+}

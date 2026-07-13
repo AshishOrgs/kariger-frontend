@@ -11,12 +11,10 @@ import {
   Landmark,
   ListTodo,
   Mail,
-  ReceiptText,
   ShieldCheck,
   SquareActivity,
   Users,
   UserRoundCog,
-  Wrench,
 } from "lucide-react";
 
 const owner = ["OWNER"];
@@ -31,9 +29,8 @@ export const navigation = [
   { label: "Customers", path: "/customers", icon: Users, roles: operator },
   { label: "Repairs", path: "/repair", icon: ClipboardList, roles: operator },
   { label: "My Repairs", path: "/technician/repairs", icon: ListTodo, roles: technician },
+  { label: "Inventory", path: "/technician/inventory", icon: Boxes, roles: technician },
   { label: "Estimates", path: "/repair/estimates", icon: ShieldCheck, roles: operator },
-  { label: "Parts Usage", path: "/repair/parts-usage", icon: Wrench, roles: operator },
-  { label: "Expense", path: "/expenses", icon: ReceiptText, roles: operator },
   { label: "Assignments", path: "/assignments", icon: UserRoundCog, roles: operator },
   { label: "Inventory", path: "/inventory", icon: Boxes, roles: operator },
   { label: "Billing", path: "/billing", icon: CreditCard, roles: operator },

@@ -15,6 +15,8 @@ const tones = {
   CLOSED: "bg-slate-200 text-slate-800",
   NOT_SELECTED: "bg-slate-50 text-slate-700",
   PENDING: "bg-yellow-50 text-yellow-800",
+  REQUESTED: "bg-amber-50 text-amber-800",
+  APPROVAL_REQUESTED: "bg-amber-50 text-amber-800",
   DONE: "bg-emerald-50 text-emerald-800",
   ACTIVE: "bg-emerald-50 text-emerald-800",
   TRIALING: "bg-cyan-50 text-cyan-800",

@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const Assignments = lazy(() => import("@/pages/Assignments").then((module) => ({ default: module.Assignments })));
 const AssignedRepairs = lazy(() => import("@/pages/AssignedRepairs").then((module) => ({ default: module.AssignedRepairs })));
+const TechnicianInventory = lazy(() => import("@/pages/AssignedRepairs").then((module) => ({ default: module.TechnicianInventory })));
 const Billing = lazy(() => import("@/pages/Billing").then((module) => ({ default: module.Billing })));
 const BranchManagement = lazy(() => import("@/pages/BranchManagement").then((module) => ({ default: module.BranchManagement })));
 const BusinessProfile = lazy(() => import("@/pages/BusinessProfile").then((module) => ({ default: module.BusinessProfile })));
@@ -15,7 +16,6 @@ const Customers = lazy(() => import("@/pages/Customers").then((module) => ({ def
 const Dashboard = lazy(() => import("@/pages/Dashboard").then((module) => ({ default: module.Dashboard })));
 const EstimateDetails = lazy(() => import("@/pages/Estimates").then((module) => ({ default: module.EstimateDetails })));
 const Estimates = lazy(() => import("@/pages/Estimates").then((module) => ({ default: module.Estimates })));
-const Expenses = lazy(() => import("@/pages/Expenses").then((module) => ({ default: module.Expenses })));
 const Handover = lazy(() => import("@/pages/Handover").then((module) => ({ default: module.Handover })));
 const Inventory = lazy(() => import("@/pages/Inventory").then((module) => ({ default: module.Inventory })));
 const InventoryDetails = lazy(() => import("@/pages/Inventory").then((module) => ({ default: module.InventoryDetails })));
@@ -23,7 +23,6 @@ const Login = lazy(() => import("@/pages/Login").then((module) => ({ default: mo
 const Signup = lazy(() => import("@/pages/Signup").then((module) => ({ default: module.Signup })));
 const ForgotPassword = lazy(() => import("@/pages/ForgotPassword").then((module) => ({ default: module.ForgotPassword })));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword").then((module) => ({ default: module.ResetPassword })));
-const PartsUsage = lazy(() => import("@/pages/PartsUsage").then((module) => ({ default: module.PartsUsage })));
 const PlanSelection = lazy(() => import("@/pages/PlanSelection").then((module) => ({ default: module.PlanSelection })));
 const CreateRepair = lazy(() => import("@/pages/Repair").then((module) => ({ default: module.CreateRepair })));
 const Repair = lazy(() => import("@/pages/Repair").then((module) => ({ default: module.Repair })));
@@ -121,8 +120,6 @@ export function AppRoutes() {
             <Route path="/repair/new" element={<RequireRole roles={operator}><CreateRepair /></RequireRole>} />
             <Route path="/repair/estimates" element={<RequireRole roles={operator}><Estimates /></RequireRole>} />
             <Route path="/repair/estimates/:id" element={<RequireRole roles={operator}><EstimateDetailsRoute /></RequireRole>} />
-            <Route path="/repair/parts-usage" element={<RequireRole roles={operator}><PartsUsage /></RequireRole>} />
-            <Route path="/expenses" element={<RequireRole roles={operator}><Expenses /></RequireRole>} />
             <Route path="/repair/:id" element={<RequireRole roles={operator}><RepairDetailsRoute /></RequireRole>} />
             <Route path="/staff" element={<RequireRole roles={staffManagers}><StaffManagement /></RequireRole>} />
             <Route path="/subscription" element={<RequireRole roles={ownerOnly}><Subscription /></RequireRole>} />
@@ -131,6 +128,7 @@ export function AppRoutes() {
             <Route path="/super-admin/businesses/:id" element={<RequireRole roles={superAdminOnly}><SuperAdminBusinessDetailsRoute /></RequireRole>} />
             <Route path="/super-admin/contacts" element={<RequireRole roles={superAdminOnly}><SuperAdminContacts /></RequireRole>} />
             <Route path="/technician/repairs" element={<RequireRole roles={technicianOnly}><AssignedRepairs /></RequireRole>} />
+            <Route path="/technician/inventory" element={<RequireRole roles={technicianOnly}><TechnicianInventory /></RequireRole>} />
             <Route path="/vendors" element={<RequireRole roles={operator}><Vendors /></RequireRole>} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
           </Route>

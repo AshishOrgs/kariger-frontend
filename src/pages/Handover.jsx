@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { CustodyTimeline } from "@/components/ui/CustodyTimeline";
+import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { repairApi, vendorsApi } from "@/services/modules";
 import { unwrapArray } from "@/utils/cn";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
@@ -50,8 +51,8 @@ export function Handover() {
   });
 
   return (
-    <>
-      <PageHeader title="Handover" description="Current holder, current location, handover history, custody timeline, and latest transition." />
+    <OperationsWorkflowPage current="handover" ticket={activeTicket} ticketId={activeTicketId}>
+      <PageHeader title="Handover" description="Customer delivery confirmation, custody history, and future-ready customer signature and warranty notes." />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <Card><CardHeader><CardTitle>Current Custody</CardTitle></CardHeader><CardContent className="p-0"><Table><thead><tr><Th>Ticket</Th><Th>Status</Th><Th>Current Holder</Th><Th>Current Location</Th></tr></thead><tbody>{ticketsWithCustody.map((ticket) => <tr key={ticket.id}><Td><button className="text-left font-semibold text-[var(--primary)]" type="button" onClick={() => setSelectedTicketId(ticket.id)}>{ticketLabel(ticket)}</button></Td><Td><StatusBadge status={ticket.status} /></Td><Td><StatusBadge status={ticket.currentHolderType || "RECEPTION"} /></Td><Td>{ticket.currentLocation || "Not set"}</Td></tr>)}</tbody></Table>{!ticketsWithCustody.length ? <div className="p-5"><EmptyState title="No repair tickets" description="Create a repair ticket before recording custody handovers." /></div> : null}</CardContent></Card>
         <HandoverForm
@@ -74,7 +75,7 @@ export function Handover() {
         </div>
       ) : null}
       {activeTicketId ? <div className="mt-5"><CustodyTimeline ticketId={activeTicketId} /></div> : null}
-    </>
+    </OperationsWorkflowPage>
   );
 }
 

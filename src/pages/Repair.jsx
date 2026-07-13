@@ -1,6 +1,6 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Search } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -9,13 +9,15 @@ import { Input, Select, Textarea } from "@/components/ui/Form";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
+import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { repairApi } from "@/services/modules";
-import { unwrapArray } from "@/utils/cn";
+import { formatCurrency, formatDate, unwrapArray } from "@/utils/cn";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
 import { getAllowedRepairTransitions, isActiveAssignment, ticketStatuses } from "@/utils/workflow";
 import { ticketLabel } from "@/utils/ticketLabel";
 
 export function Repair() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const { data } = useQuery({ queryKey: ["repair", search, status], queryFn: () => repairApi.list({ search: search || undefined, status: status || undefined }) });
@@ -38,10 +40,35 @@ export function Repair() {
     const withCustody = mergeTicketCustody(ticket, custodyQueries[index]?.data);
     return mergeTicketAssignment(withCustody, assignmentQueries[index]?.data);
   });
+  const requestedTicketId = searchParams.get("ticketId") || "";
+  const workflowTicket = ticketsWithWorkflow.find((ticket) => ticket.id === requestedTicketId) || null;
+  const selectedTicketId = requestedTicketId;
+  const selectedTicketQuery = useQuery({
+    queryKey: ["repair", selectedTicketId],
+    queryFn: () => repairApi.get(selectedTicketId),
+    enabled: Boolean(selectedTicketId),
+  });
+  const selectedTicketRaw = selectedTicketQuery.data?.data?.ticket || selectedTicketQuery.data?.data || workflowTicket;
+  const selectedTicket = selectedTicketRaw
+    ? {
+        ...selectedTicketRaw,
+        assignedTechnicianName: selectedTicketRaw.assignedTechnicianName || workflowTicket?.assignedTechnicianName || getAssignedTechnicianName(selectedTicketRaw),
+      }
+    : null;
+  const selectedPartsUsageQuery = useQuery({
+    queryKey: ["parts-usage", selectedTicketId],
+    queryFn: () => repairApi.partsUsage(selectedTicketId),
+    enabled: Boolean(selectedTicketId),
+  });
+  const selectedPartsUsage = unwrapArray(selectedPartsUsageQuery.data, ["partsUsage", "usages", "usage"]);
+
+  if (requestedTicketId) {
+    return <TechnicianReportView ticket={selectedTicket} partsUsage={selectedPartsUsage} isLoading={selectedTicketQuery.isLoading} />;
+  }
 
   return (
-    <>
-      <PageHeader title="Repair" description="Repair list, details, create repair, update status, search, and filters." actions={<Link to="/repair/new"><Button><Plus className="h-4 w-4" />Create Repair</Button></Link>} />
+    <OperationsWorkflowPage current="repair" ticket={workflowTicket} ticketId={requestedTicketId} showContinue={false} showSummary={false}>
+      <PageHeader title="Repair" description="Technician execution workspace for status, timeline, notes, progress, device condition, and quality review." />
       <Card className="mb-4">
         <CardContent className="grid gap-3 md:grid-cols-[1fr_220px]">
           <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input className="pl-9" placeholder="Search repairs" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
@@ -69,7 +96,7 @@ export function Repair() {
           />
         </CardContent>
       </Card>
-    </>
+    </OperationsWorkflowPage>
   );
 }
 
@@ -78,8 +105,8 @@ export function CreateRepair() {
   const createdTicket = mutation.data?.data?.ticket;
 
   return (
-    <>
-      <PageHeader title="Create Repair" description="Repair intake creates customer, ticket, item, issue, and initial status log." />
+    <OperationsWorkflowPage current="customer" ticket={createdTicket} showContinue={false}>
+      <PageHeader title="Create Repair" description="Customer intake creates customer information, device registration, ticket details, and initial issue notes." />
       <Card>
         <CardContent>
           <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => {
@@ -114,14 +141,14 @@ export function CreateRepair() {
           {createdTicket ? (
             <div className="mt-4 flex flex-col gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800 md:flex-row md:items-center md:justify-between">
               <span>Repair created: {ticketLabel(createdTicket)}</span>
-              <Link to={`/assignments?ticketId=${createdTicket.id}`}>
-                <Button size="sm" type="button">Go to Assignment</Button>
+              <Link to={`/repair/estimates?ticketId=${createdTicket.id}`}>
+                <Button size="sm" type="button">Go to Estimate</Button>
               </Link>
             </div>
           ) : null}
         </CardContent>
       </Card>
-    </>
+    </OperationsWorkflowPage>
   );
 }
 
@@ -158,12 +185,12 @@ function NextRepairStep({ ticket }) {
     return <Link to={`/assignments?ticketId=${ticket.id}`}><Button size="sm" type="button">Assign</Button></Link>;
   }
 
-  if (["DIAGNOSING", "ESTIMATE_PENDING", "WAITING_APPROVAL"].includes(status)) {
+  if (["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"].includes(status)) {
     return <Link to={`/repair/estimates?ticketId=${ticket.id}`}><Button size="sm" type="button">Estimate</Button></Link>;
   }
 
-  if (["APPROVED", "IN_REPAIR", "WAITING_PARTS"].includes(status)) {
-    return <Link to={`/repair/parts-usage?ticketId=${ticket.id}`}><Button size="sm" type="button">Parts</Button></Link>;
+  if (["APPROVED", "IN_REPAIR", "WAITING_PARTS", "READY_FOR_REVIEW"].includes(status)) {
+    return <Link to={`/repair?ticketId=${ticket.id}`}><Button size="sm" type="button">Technician report</Button></Link>;
   }
 
   if (["READY_FOR_DELIVERY", "DELIVERED"].includes(status)) {
@@ -171,6 +198,168 @@ function NextRepairStep({ ticket }) {
   }
 
   return <span className="text-sm text-[var(--muted)]">Review</span>;
+}
+
+function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
+  if (isLoading) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Technician report" description="Loading technician report..." />
+        <Card>
+          <CardContent>
+            <p className="text-sm text-[var(--muted)]">Loading report...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!ticket?.id) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Technician report" description="Repair ticket report was not found." />
+        <Card>
+          <CardContent>
+            <p className="text-sm text-[var(--muted)]">No technician report is available for this ticket.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  const technicianName = getReportTechnicianName(ticket, partsUsage);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader
+          title="Technician report"
+          description="Review technician work, used item parts, and final repair cost before billing."
+        />
+        <Link to="/repair">
+          <Button type="button" variant="secondary">Back to Repairs</Button>
+        </Link>
+      </div>
+
+      <Card className="border-l-4 border-l-[var(--primary)]">
+        <CardContent>
+          <div className="grid gap-3 md:grid-cols-5">
+            <SummaryBlock label="Ticket ID" value={ticketLabel(ticket)} />
+            <SummaryBlock label="Technician Name" value={technicianName} />
+            <SummaryBlock label="Status" value={<StatusBadge status={ticket.status} />} />
+            <SummaryBlock label="Extra Cost" value={formatCurrency(ticket.extraCost)} />
+            <SummaryBlock label="Parts Total" value={formatCurrency(getPartsTotal(partsUsage))} />
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Link to={`/billing?ticketId=${ticket.id}`}>
+              <Button type="button">Go to Billing / Invoicing</Button>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+
+      <TechnicianReportPanel ticket={{ ...ticket, assignedTechnicianName: technicianName }} partsUsage={partsUsage} />
+    </div>
+  );
+}
+
+function TechnicianReportPanel({ ticket, partsUsage = [] }) {
+  if (!ticket?.id) {
+    return null;
+  }
+
+  const partsTotal = getPartsTotal(partsUsage);
+  const technicianReport = ticket.diagnosis || ticket.workPerformed || ticket.repairNotes || "";
+
+  return (
+    <Card>
+      <CardContent>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-black text-slate-950">Technician report</h3>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              Read-only repair report and used item parts submitted for this ticket.
+            </p>
+          </div>
+          <StatusBadge status={ticket.status} />
+        </div>
+
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+          <p className="text-xs font-semibold uppercase text-slate-500">Technician Report</p>
+          <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">
+            {technicianReport || "No technician report submitted yet."}
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
+          <SummaryBlock label="Extra Cost" value={formatCurrency(ticket.extraCost)} />
+          <SummaryBlock label="Why Extra Cost?" value={ticket.extraCostReason} />
+        </div>
+
+        <div className="mt-4 rounded-md border border-slate-200">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
+            <p className="text-sm font-semibold text-slate-800">Used Item Parts</p>
+            <p className="text-sm font-bold text-slate-950">{formatCurrency(partsTotal)}</p>
+          </div>
+          {partsUsage.length ? (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Part</Th>
+                  <Th>Technician</Th>
+                  <Th>Qty</Th>
+                  <Th>Cost</Th>
+                  <Th>Used At</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {partsUsage.map((usage, index) => (
+                  <tr key={usage.id || index}>
+                    <Td>{usage.inventoryItem?.partName || usage.partName || usage.partSku || "Part"}</Td>
+                    <Td>{usage.technician?.fullName || usage.technician?.name || "Technician"}</Td>
+                    <Td>{String(usage.quantity)}</Td>
+                    <Td>{formatCurrency(usage.totalCost || Number(usage.quantity || 0) * Number(usage.unitCost || 0))}</Td>
+                    <Td>{formatDate(usage.usedAt || usage.createdAt)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <p className="p-3 text-sm text-[var(--muted)]">No consumed parts recorded yet.</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SummaryBlock({ label, value }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+      <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">{value || "Not recorded"}</p>
+    </div>
+  );
+}
+
+function getPartsTotal(partsUsage = []) {
+  return partsUsage.reduce((sum, usage) => sum + Number(usage.totalCost || Number(usage.quantity || 0) * Number(usage.unitCost || 0)), 0);
+}
+
+function getAssignedTechnicianName(ticket) {
+  const activeAssignment = (ticket?.assignments || []).find(isActiveAssignment) || ticket?.assignments?.[0];
+  return getTechnicianName(activeAssignment);
+}
+
+function getReportTechnicianName(ticket, partsUsage = []) {
+  const usageTechnician = partsUsage.find((usage) => usage.technician)?.technician;
+  return (
+    ticket?.assignedTechnicianName ||
+    usageTechnician?.fullName ||
+    usageTechnician?.name ||
+    getAssignedTechnicianName(ticket) ||
+    "Not recorded"
+  );
 }
 
 function Info({ label, value }) {

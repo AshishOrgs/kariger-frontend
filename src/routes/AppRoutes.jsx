@@ -32,6 +32,7 @@ const BranchPortal = lazy(() => import("@/pages/BranchPortal").then((module) => 
 const BranchDetails = lazy(() => import("@/pages/BranchDetails").then((module) => ({ default: module.BranchDetails })));
 const LandingPage = lazy(() => import("@/pages/PublicPage/LandingPage").then((module) => ({ default: module.LandingPage })));
 const ContactPage = lazy(() => import("@/pages/PublicPage/ContactPage").then((module) => ({ default: module.ContactPage })));
+const LegalPage = lazy(() => import("@/pages/PublicPage/LegalPage").then((module) => ({ default: module.LegalPage })));
 const StaffManagement = lazy(() => import("@/pages/StaffManagement").then((module) => ({ default: module.StaffManagement })));
 const Subscription = lazy(() => import("@/pages/Subscription").then((module) => ({ default: module.Subscription })));
 const SuperAdminBusinesses = lazy(() => import("@/pages/SuperAdminBusinesses").then((module) => ({ default: module.SuperAdminBusinesses })));
@@ -95,6 +96,11 @@ export function AppRoutes() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/privacy-policy" element={<LegalPage type="privacy-policy" />} />
+        <Route path="/terms-and-conditions" element={<LegalPage type="terms-and-conditions" />} />
+        <Route path="/cookie-policy" element={<LegalPage type="cookie-policy" />} />
+        <Route path="/refund-policy" element={<LegalPage type="refund-policy" />} />
+        <Route path="/security-policy" element={<LegalPage type="security-policy" />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

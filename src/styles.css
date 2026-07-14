@@ -152,12 +152,26 @@ a {
   }
 }
 
+.testimonial-logo-track {
+  animation: testimonialLogoScroll 28s linear infinite;
+}
+
+@keyframes testimonialLogoScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-glow,
   .hero-fade-in,
   .hero-laptop,
   .hero-phone,
-  .hero-floating-card {
+  .hero-floating-card,
+  .testimonial-logo-track {
     animation: none;
   }
 }

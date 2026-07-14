@@ -73,11 +73,19 @@ export function TrustSection() {
           observer.disconnect();
         }
       },
-      { threshold: 0.28 }
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.01 }
     );
 
     observer.observe(node);
-    return () => observer.disconnect();
+    const fallback = window.setTimeout(() => {
+      setMetricsVisible(true);
+      observer.disconnect();
+    }, 900);
+
+    return () => {
+      window.clearTimeout(fallback);
+      observer.disconnect();
+    };
   }, []);
 
   useEffect(() => {

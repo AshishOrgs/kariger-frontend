@@ -26,10 +26,10 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { CONTACT_INFO } from "./ContactPage";
 import { TrustSection } from "./components/TrustSection";
+import { TestimonialsSection } from "./components/TestimonialsSection";
+import { FooterSection } from "./components/FooterSection";
 
 export function LandingPage() {
   const { isAuthenticated, user } = useAuth();
@@ -1494,136 +1494,9 @@ export function LandingPage() {
 
       <TrustSection />
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-20 bg-slate-50">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h2 className="text-xs font-black text-blue-600 uppercase tracking-widest">
-              Customer Feedback
-            </h2>
-            <p className="mt-3 text-3xl font-black text-slate-900 sm:text-4xl">
-              Trusted by repair professionals worldwide
-            </p>
-          </div>
+      <TestimonialsSection />
 
-          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            <Card className="border-slate-200/60 shadow-sm bg-white">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex gap-0.5 text-yellow-400">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "RepairFlow transformed our invoicing entirely. We no longer
-                  lose track of which technician consumed screen assemblies or
-                  how much labor charge was quoted."
-                </p>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">
-                    Vikram S.
-                  </h4>
-                  <p className="text-[10px] text-slate-400">
-                    Owner, Bhilai Phone Care Hub
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-200/60 shadow-sm bg-white">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex gap-0.5 text-yellow-400">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "The custom branch portals feature is fantastic! I was able to
-                  customize branding for all 4 locations in under 10 minutes.
-                  Our branch admins love landing on them."
-                </p>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">Aisha K.</h4>
-                  <p className="text-[10px] text-slate-400">
-                    Managing Director, TechRepair Group
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-slate-200/60 shadow-sm bg-white">
-              <CardContent className="p-6 space-y-4">
-                <div className="flex gap-0.5 text-yellow-400">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-current" />
-                  ))}
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed italic">
-                  "Workload graphs allow me to assign incoming tickets evenly.
-                  Technicians are happier, turnaround times dropped by 30%, and
-                  client trust is at an all-time high."
-                </p>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-800">James L.</h4>
-                  <p className="text-[10px] text-slate-400">
-                    Operations Manager, QuickFix Network
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-12 text-slate-500 text-xs">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] grid place-items-center text-white font-black">
-              K
-            </div>
-            <span className="font-extrabold text-slate-800">KARIGER</span>
-          </div>
-
-          <p className="text-center text-slate-400">
-            &copy; {new Date().getFullYear()} RepairFlow Inc. All rights
-            reserved. Built for local repair shops & startup scales.
-          </p>
-
-          <div className="flex gap-4">
-            <Link
-              to="/contact"
-              className="hover:text-slate-900 transition-colors font-bold"
-            >
-              Contact Support
-            </Link>
-            <a
-              href={CONTACT_INFO.socials.linkedin}
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-slate-900 transition-colors"
-            >
-              LinkedIn
-            </a>
-            <a
-              href={CONTACT_INFO.socials.instagram}
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-slate-900 transition-colors"
-            >
-              Instagram
-            </a>
-            <a
-              href={CONTACT_INFO.socials.facebook}
-              target="_blank"
-              rel="noreferrer"
-              className="hover:text-slate-900 transition-colors"
-            >
-              Facebook
-            </a>
-          </div>
-        </div>
-      </footer>
+      <FooterSection />
     </div>
   );
 }

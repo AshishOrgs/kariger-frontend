@@ -29,6 +29,7 @@ import {
 import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CONTACT_INFO } from "./ContactPage";
+import { TrustSection } from "./components/TrustSection";
 
 export function LandingPage() {
   const { isAuthenticated, user } = useAuth();
@@ -1490,6 +1491,8 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      <TrustSection />
 
       {/* Testimonials */}
       <section id="testimonials" className="py-20 bg-slate-50">

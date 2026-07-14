@@ -42,7 +42,10 @@ export function LandingPage() {
     if (isAuthenticated && user) {
       if (user.role === "SUPER_ADMIN") {
         navigate("/super-admin/businesses", { replace: true });
-      } else if (user.role === "OWNER" && user.business?.subscription?.status === "NOT_SELECTED") {
+      } else if (
+        user.role === "OWNER" &&
+        user.business?.subscription?.status === "NOT_SELECTED"
+      ) {
         navigate("/plans", { replace: true });
       } else if (user.role === "OWNER" || user.role === "ADMIN") {
         navigate("/branch/portal", { replace: true });
@@ -454,9 +457,9 @@ export function LandingPage() {
   ];
 
   const heroMetrics = [
-    { value: "50K+", label: "Repairs Managed" },
+    { value: "5+", label: "Repairs Managed" },
     { value: "99.9%", label: "System Uptime" },
-    { value: "4.9★", label: "Customer Rating" },
+    { value: "3.9★", label: "Customer Rating" },
     { value: "24/7", label: "Support" },
   ];
 
@@ -541,7 +544,7 @@ export function LandingPage() {
     repairWorkflowSteps[0];
   const ActiveWorkflowIcon = activeWorkflowStep.icon;
   const activeWorkflowIndex = repairWorkflowSteps.findIndex(
-    (step) => step.id === activeWorkflowStep.id
+    (step) => step.id === activeWorkflowStep.id,
   );
 
   return (
@@ -938,7 +941,11 @@ export function LandingPage() {
                             : "border-slate-200 bg-white text-slate-400"
                       }`}
                     >
-                      {isComplete ? <Check className="h-3.5 w-3.5" /> : index + 1}
+                      {isComplete ? (
+                        <Check className="h-3.5 w-3.5" />
+                      ) : (
+                        index + 1
+                      )}
                     </span>
                     <span className="text-[11px] font-black">
                       {step.navLabel}
@@ -967,86 +974,86 @@ export function LandingPage() {
 
               <div className="overflow-x-auto pb-2 lg:flex-1 lg:overflow-visible lg:pb-0">
                 <div className="grid min-w-[760px] grid-cols-7 gap-3 sm:min-w-0 lg:h-full lg:min-w-0 lg:grid-cols-1 lg:content-between lg:gap-0">
-                {repairWorkflowSteps.map((step, index) => {
-                  const Icon = step.icon;
-                  const isActive = activeFeatureStep === step.id;
-                  const isComplete = index < activeWorkflowIndex;
-                  return (
-                    <button
-                      key={step.id}
-                      type="button"
-                      onClick={() => setActiveFeatureStep(step.id)}
-                      className={`group relative flex min-h-[8.75rem] flex-col items-start justify-between rounded-3xl border p-3 text-left transition-all duration-300 lg:min-h-0 lg:flex-row lg:items-center lg:gap-4 lg:rounded-2xl lg:border-transparent lg:p-3 ${
-                        isActive
-                          ? "border-blue-200 bg-blue-50/90 shadow-[0_16px_44px_rgba(37,99,235,0.14)] ring-1 ring-blue-100"
-                          : "border-slate-200/70 bg-white/65 hover:border-blue-100 hover:bg-white hover:shadow-md hover:shadow-slate-900/[0.05] lg:bg-transparent"
-                      }`}
-                    >
-                      <span className="flex w-full items-start justify-between gap-2 lg:relative lg:w-auto">
-                        <span
-                          aria-hidden="true"
-                          className={`absolute left-[1.125rem] top-11 hidden h-[calc(100%+0.5rem)] w-px lg:block ${
-                            index === repairWorkflowSteps.length - 1
-                              ? "bg-transparent"
-                              : isComplete
-                                ? "bg-gradient-to-b from-blue-500 to-cyan-400"
-                                : "bg-slate-200"
+                  {repairWorkflowSteps.map((step, index) => {
+                    const Icon = step.icon;
+                    const isActive = activeFeatureStep === step.id;
+                    const isComplete = index < activeWorkflowIndex;
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        onClick={() => setActiveFeatureStep(step.id)}
+                        className={`group relative flex min-h-[8.75rem] flex-col items-start justify-between rounded-3xl border p-3 text-left transition-all duration-300 lg:min-h-0 lg:flex-row lg:items-center lg:gap-4 lg:rounded-2xl lg:border-transparent lg:p-3 ${
+                          isActive
+                            ? "border-blue-200 bg-blue-50/90 shadow-[0_16px_44px_rgba(37,99,235,0.14)] ring-1 ring-blue-100"
+                            : "border-slate-200/70 bg-white/65 hover:border-blue-100 hover:bg-white hover:shadow-md hover:shadow-slate-900/[0.05] lg:bg-transparent"
+                        }`}
+                      >
+                        <span className="flex w-full items-start justify-between gap-2 lg:relative lg:w-auto">
+                          <span
+                            aria-hidden="true"
+                            className={`absolute left-[1.125rem] top-11 hidden h-[calc(100%+0.5rem)] w-px lg:block ${
+                              index === repairWorkflowSteps.length - 1
+                                ? "bg-transparent"
+                                : isComplete
+                                  ? "bg-gradient-to-b from-blue-500 to-cyan-400"
+                                  : "bg-slate-200"
+                            }`}
+                          />
+                          <span
+                            className={`relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-xl border transition-all lg:h-9 lg:w-9 ${
+                              isActive
+                                ? "border-blue-200 bg-white text-blue-600 shadow-[0_0_0_7px_rgba(37,99,235,0.10)]"
+                                : isComplete
+                                  ? "border-cyan-200 bg-cyan-50 text-cyan-700"
+                                  : "border-slate-200 bg-white/80 text-slate-500 group-hover:text-blue-600"
+                            }`}
+                          >
+                            {isComplete ? (
+                              <Check className="h-4 w-4" />
+                            ) : (
+                              <Icon className="h-4 w-4" />
+                            )}
+                          </span>
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-black lg:hidden ${
+                              isActive
+                                ? "bg-blue-600 text-white"
+                                : "bg-slate-100 text-slate-400"
+                            }`}
+                          >
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                        </span>
+                        <span className="min-w-0 lg:flex-1">
+                          <span
+                            className={`mb-1 hidden text-[10px] font-black uppercase tracking-[0.18em] lg:block ${
+                              isActive ? "text-blue-600" : "text-slate-400"
+                            }`}
+                          >
+                            {String(index + 1).padStart(2, "0")}
+                          </span>
+                          <span
+                            className={`block text-xs font-black leading-snug transition-colors lg:text-sm ${
+                              isActive ? "text-[#0F172A]" : "text-slate-700"
+                            }`}
+                          >
+                            {step.label}
+                          </span>
+                          <span className="mt-1 block text-[11px] font-semibold text-slate-500">
+                            {step.kicker}
+                          </span>
+                        </span>
+                        <ChevronRight
+                          className={`hidden h-4 w-4 shrink-0 transition-all lg:block ${
+                            isActive
+                              ? "translate-x-0 text-blue-600 opacity-100"
+                              : "-translate-x-1 text-slate-300 opacity-0 group-hover:translate-x-0 group-hover:opacity-100"
                           }`}
                         />
-                        <span
-                          className={`relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-xl border transition-all lg:h-9 lg:w-9 ${
-                            isActive
-                              ? "border-blue-200 bg-white text-blue-600 shadow-[0_0_0_7px_rgba(37,99,235,0.10)]"
-                              : isComplete
-                                ? "border-cyan-200 bg-cyan-50 text-cyan-700"
-                                : "border-slate-200 bg-white/80 text-slate-500 group-hover:text-blue-600"
-                          }`}
-                        >
-                          {isComplete ? (
-                            <Check className="h-4 w-4" />
-                          ) : (
-                            <Icon className="h-4 w-4" />
-                          )}
-                        </span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-black lg:hidden ${
-                            isActive
-                              ? "bg-blue-600 text-white"
-                              : "bg-slate-100 text-slate-400"
-                          }`}
-                        >
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                      </span>
-                      <span className="min-w-0 lg:flex-1">
-                        <span
-                          className={`mb-1 hidden text-[10px] font-black uppercase tracking-[0.18em] lg:block ${
-                            isActive ? "text-blue-600" : "text-slate-400"
-                          }`}
-                        >
-                          {String(index + 1).padStart(2, "0")}
-                        </span>
-                        <span
-                          className={`block text-xs font-black leading-snug transition-colors lg:text-sm ${
-                            isActive ? "text-[#0F172A]" : "text-slate-700"
-                          }`}
-                        >
-                          {step.label}
-                        </span>
-                        <span className="mt-1 block text-[11px] font-semibold text-slate-500">
-                          {step.kicker}
-                        </span>
-                      </span>
-                      <ChevronRight
-                        className={`hidden h-4 w-4 shrink-0 transition-all lg:block ${
-                          isActive
-                            ? "translate-x-0 text-blue-600 opacity-100"
-                            : "-translate-x-1 text-slate-300 opacity-0 group-hover:translate-x-0 group-hover:opacity-100"
-                        }`}
-                      />
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1400,7 +1407,7 @@ export function LandingPage() {
                           <th key={heading} className="px-5 py-4">
                             {heading}
                           </th>
-                        )
+                        ),
                       )}
                     </tr>
                   </thead>

@@ -12,21 +12,23 @@ import {
 } from "lucide-react";
 
 const trustMetrics = [
-  { target: 50, suffix: "K+", label: "Repairs Managed" },
+  { target: 5, suffix: "+", label: "Repairs Managed" },
   { target: 99.9, suffix: "%", decimals: 1, label: "System Uptime" },
-  { target: 4.9, suffix: "★", decimals: 1, label: "Customer Rating" },
+  { target: 3.9, suffix: "★", decimals: 1, label: "Customer Rating" },
   { target: 24, suffix: "/7", label: "Priority Support" },
 ];
 
 const trustHighlights = [
   {
     title: "GST Ready",
-    description: "Generate clean GST-ready invoices for every completed repair.",
+    description:
+      "Generate clean GST-ready invoices for every completed repair.",
     icon: ReceiptText,
   },
   {
     title: "Role Based Access",
-    description: "Give owners, admins, technicians, and staff the right controls.",
+    description:
+      "Give owners, admins, technicians, and staff the right controls.",
     icon: UserCheck,
   },
   {
@@ -41,7 +43,8 @@ const trustHighlights = [
   },
   {
     title: "Workflow Automation",
-    description: "Move repairs through intake, estimate, repair, billing, and handover.",
+    description:
+      "Move repairs through intake, estimate, repair, billing, and handover.",
     icon: Sparkles,
   },
   {
@@ -52,7 +55,7 @@ const trustHighlights = [
 ];
 
 const analyticsRows = [
-  ["Branch Revenue", "₹4.8L", "18%"],
+  ["Branch Revenue", "₹4.8", "18%"],
   ["Repairs Closed", "1,248", "24%"],
   ["Inventory Alerts", "12", "Live"],
 ];
@@ -73,7 +76,7 @@ export function TrustSection() {
           observer.disconnect();
         }
       },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.01 }
+      { rootMargin: "0px 0px -12% 0px", threshold: 0.01 },
     );
 
     observer.observe(node);
@@ -141,9 +144,7 @@ export function TrustSection() {
             >
               <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent" />
               <p className="bg-gradient-to-br from-slate-950 via-slate-900 to-blue-700 bg-clip-text text-4xl font-black tracking-[-0.04em] text-transparent sm:text-5xl">
-                {(metric.target * metricProgress).toFixed(
-                  metric.decimals ?? 0
-                )}
+                {(metric.target * metricProgress).toFixed(metric.decimals ?? 0)}
                 {metric.suffix}
               </p>
               <p className="mt-2 text-xs font-black uppercase tracking-[0.16em] text-slate-500">
@@ -193,17 +194,20 @@ export function TrustSection() {
               spreadsheets.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {["Live repair status", "Branch-level inventory", "GST billing", "Technician output"].map(
-                (item) => (
-                  <div
-                    key={item}
-                    className="flex items-center gap-2 rounded-2xl border border-white/80 bg-white/72 px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
-                  >
-                    <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                    <span>{item}</span>
-                  </div>
-                )
-              )}
+              {[
+                "Live repair status",
+                "Branch-level inventory",
+                "GST billing",
+                "Technician output",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="flex items-center gap-2 rounded-2xl border border-white/80 bg-white/72 px-3 py-2 text-sm font-bold text-slate-700 shadow-sm"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-blue-600" />
+                  <span>{item}</span>
+                </div>
+              ))}
             </div>
           </div>
 

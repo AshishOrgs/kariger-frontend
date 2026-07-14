@@ -229,10 +229,12 @@ function AdminSidebarNavigation({
   onNavigate,
 }) {
   const byPath = useMemo(() => new Map(items.map((item) => [item.path, item])), [items]);
+  const branchPortal = byPath.get("/branch/portal");
   const dashboard = byPath.get("/dashboard");
 
   return (
     <>
+      {branchPortal ? <SidebarLink item={branchPortal} onNavigate={onNavigate} /> : null}
       {dashboard ? <SidebarLink item={dashboard} onNavigate={onNavigate} /> : null}
 
       <button

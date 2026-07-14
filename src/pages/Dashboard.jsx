@@ -1,7 +1,21 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BarChart3, CheckCircle2, CreditCard, PackageCheck, Users, Wrench } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  ClipboardList,
+  CreditCard,
+  PackageCheck,
+  Plus,
+  RefreshCw,
+  UserRound,
+  Users,
+  Wrench,
+} from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -19,6 +33,38 @@ import { QueryState } from "@/components/ui/QueryState";
 import { ticketLabel } from "@/utils/ticketLabel";
 
 const colors = ["#1769aa", "#0f9f8f", "#b7791f", "#16794c"];
+
+const adminPanelClass =
+  "rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]";
+const adminHoverClass = "transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.10)]";
+
+const displayName = (name, email) => name || email?.split("@")?.[0] || "User";
+
+const initials = (name, email) => {
+  const label = displayName(name, email);
+  return (
+    label
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U"
+  );
+};
+
+const formatRoleLabel = (role = "ADMIN") =>
+  role
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good Morning";
+  if (hour < 17) return "Good Afternoon";
+  return "Good Evening";
+};
 
 
 

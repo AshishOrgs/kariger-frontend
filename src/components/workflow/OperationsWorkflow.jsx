@@ -47,38 +47,49 @@ export function OperationsWorkflowPage({ current, ticket, ticketId, showContinue
 
   return (
     <div className="space-y-5">
-      <Card>
-        <CardContent className="space-y-4">
-          <div>
-            <p className="text-xs font-black uppercase tracking-wider text-slate-500">Operations Workflow</p>
-            <p className="mt-1 text-sm text-[var(--muted)]">Follow the repair from intake to customer handover.</p>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-            {operationSteps.map((step, index) => {
-              const completed = index < currentIndex;
-              const active = index === currentIndex;
-              return (
-                <Link
-                  key={step.key}
-                  to={withTicket(step.path, activeTicketId)}
-                  className={cn(
-                    "flex min-h-20 flex-col justify-between rounded-md border p-3 transition hover:bg-slate-50",
-                    completed && "border-emerald-200 bg-emerald-50 text-emerald-900",
-                    active && "border-blue-200 bg-blue-50 text-blue-950",
-                    !completed && !active && "border-slate-200 bg-white text-slate-500"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    {completed ? <Check className="h-4 w-4 text-emerald-600" /> : active ? <ArrowRight className="h-4 w-4 text-blue-600" /> : <Circle className="h-4 w-4 text-slate-400" />}
-                    <span className="text-[10px] font-bold uppercase tracking-wider">{active ? "Current" : completed ? "Done" : "Next"}</span>
-                  </div>
-                  <span className="mt-3 text-sm font-black">{step.label}</span>
-                </Link>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="-mx-4 bg-[var(--background)] px-4 pb-2 pt-1 lg:-mx-6 lg:px-6">
+        <Card className="bg-white/95 shadow-sm backdrop-blur">
+          <CardContent className="space-y-3 p-3 sm:p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-wider text-slate-500">Operations Workflow</p>
+                <p className="mt-1 text-sm text-[var(--muted)]">Follow the repair from intake to customer handover.</p>
+              </div>
+              <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-700">
+                Step {currentIndex + 1}
+              </span>
+            </div>
+            <div className="-mx-1 overflow-x-auto pb-1">
+              <div className="flex min-w-max gap-2 px-1">
+                {operationSteps.map((step, index) => {
+                const completed = index < currentIndex;
+                const active = index === currentIndex;
+                return (
+                  <Link
+                    key={step.key}
+                    to={withTicket(step.path, activeTicketId)}
+                    className={cn(
+                      "flex h-14 min-w-[136px] items-center gap-2 rounded-md border px-3 transition hover:bg-slate-50 sm:min-w-[154px]",
+                      completed && "border-emerald-200 bg-emerald-50 text-emerald-900",
+                      active && "border-blue-200 bg-blue-50 text-blue-950",
+                      !completed && !active && "border-slate-200 bg-white text-slate-500"
+                    )}
+                  >
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white shadow-sm">
+                      {completed ? <Check className="h-4 w-4 text-emerald-600" /> : active ? <ArrowRight className="h-4 w-4 text-blue-600" /> : <Circle className="h-4 w-4 text-slate-400" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[10px] font-black uppercase tracking-wider">{active ? "Current" : completed ? "Done" : "Next"}</span>
+                      <span className="block truncate text-sm font-black">{step.label}</span>
+                    </span>
+                  </Link>
+                );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
       {showSummary ? (
         <Card>

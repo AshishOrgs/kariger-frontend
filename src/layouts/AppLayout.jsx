@@ -1,6 +1,22 @@
 import { useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { ChevronDown, ChevronRight, Clock3, FolderKanban, LockKeyhole, LogOut, Menu, Sparkles } from "lucide-react";
+import {
+  BadgePlus,
+  Bell,
+  ChevronDown,
+  ChevronRight,
+  Clock3,
+  FolderKanban,
+  Grid2X2,
+  LayoutDashboard,
+  LockKeyhole,
+  LogOut,
+  Menu,
+  PanelTop,
+  Settings2,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Form";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +30,7 @@ export function AppLayout() {
   const [open, setOpen] = useState(false);
   const [operationsOpen, setOperationsOpen] = useState(true);
   const [managementOpen, setManagementOpen] = useState(true);
+  const [mobileAdminPanel, setMobileAdminPanel] = useState(null);
   const location = useLocation();
   const { user, logout, hasRole, updateSubscription } = useAuth();
   const { allBranchesValue, branches, selectedBranchId, setSelectedBranchId } = useBranch();
@@ -33,6 +50,7 @@ export function AppLayout() {
   const brandTitle = isSuperAdmin
     ? "Repair ERP Platform"
     : activeBranch?.metadata?.title || activeBranch?.name || "Repair ERP";
+  const activeBranchName = activeBranch?.name || brandTitle;
   const brandSlogan = isSuperAdmin
     ? "SaaS control center"
     : activeBranch?.metadata?.slogan || activeBranch?.code || "Backend modules as navigation";
@@ -61,11 +79,13 @@ export function AppLayout() {
     (!approvalPending || user?.role === "OWNER");
   const trialWarning = !isSuperAdmin && !isWorkspaceLocked && subscription?.trialWarningLevel;
   const closeMobileSidebar = () => setOpen(false);
+  const isAdminMobileShell = user?.role === "ADMIN";
+  const closeMobileAdminPanel = () => setMobileAdminPanel(null);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
       {/* Backdrop overlay for mobile screen */}
-      {open ? (
+      {open && !isAdminMobileShell ? (
         <div
           className="fixed inset-0 z-20 bg-slate-900/40 backdrop-blur-[2px] transition-opacity lg:hidden"
           onClick={() => setOpen(false)}
@@ -74,7 +94,11 @@ export function AppLayout() {
 
       <aside
         onDoubleClick={closeMobileSidebar}
-        className={cn("fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh w-72 flex-col overflow-hidden border-r border-[var(--border)] bg-white transition-transform lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}
+        className={cn(
+          "fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh w-72 flex-col overflow-hidden border-r border-[var(--border)] bg-white transition-transform lg:translate-x-0",
+          open ? "translate-x-0" : "-translate-x-full",
+          isAdminMobileShell && "hidden lg:flex"
+        )}
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
           <Link
@@ -157,12 +181,37 @@ export function AppLayout() {
         </div>
       </aside>
       <div className="min-w-0 lg:pl-72">
-        <header className="sticky top-0 z-20 flex h-16 min-w-0 items-center justify-between border-b border-[var(--border)] bg-white px-4 lg:px-6">
-          <div className="flex items-center gap-3">
+        <header className="sticky top-0 z-20 flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-white px-3 lg:px-6">
+          {isAdminMobileShell ? (
+            <Link to="/branch/portal" className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
+              {brandLogo ? (
+                <img
+                  src={brandLogo}
+                  alt="Logo"
+                  className="h-10 w-10 shrink-0 rounded-2xl border border-slate-100 bg-slate-50 object-contain p-1 shadow-sm"
+                  onError={(event) => {
+                    event.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-xs font-black text-white shadow-sm shadow-teal-900/15">
+                  {brandTitle.substring(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black leading-tight text-slate-950" title={user?.fullName || brandTitle}>
+                  {user?.fullName || "Admin"}
+                </p>
+                <p className="truncate text-[11px] font-semibold text-[var(--muted)]">{user?.role || "ADMIN"}</p>
+              </div>
+            </Link>
+          ) : null}
+
+          <div className={cn("items-center gap-3", isAdminMobileShell ? "hidden lg:flex" : "flex")}>
             <Button
               variant="ghost"
               size="sm"
-              className="lg:hidden"
+              className={cn("lg:hidden", isAdminMobileShell && "hidden")}
               onClick={() => setOpen((value) => !value)}
               onDoubleClick={closeMobileSidebar}
             >
@@ -175,6 +224,24 @@ export function AppLayout() {
               <p className="text-xs text-[var(--muted)]">{user?.fullName} · {user?.role}</p>
             </div>
           </div>
+          {isAdminMobileShell ? (
+            <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 lg:hidden">
+              <button
+                type="button"
+                className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm"
+                aria-label="Notifications"
+              >
+                <Bell className="h-4 w-4" />
+                <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-teal-500 ring-2 ring-white" />
+              </button>
+              <div className="min-w-0 max-w-[138px] rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <p className="truncate text-[9px] font-black uppercase tracking-wide text-slate-400">Active Branch</p>
+                <p className="truncate text-[11px] font-black leading-tight text-[var(--primary)]" title={activeBranchName}>
+                  {activeBranchName}
+                </p>
+              </div>
+            </div>
+          ) : null}
           {showBranchSelector ? (
             <Select
               className="hidden w-56 sm:block"
@@ -193,13 +260,21 @@ export function AppLayout() {
             </Select>
           ) : null}
         </header>
-        <main className="relative min-w-0 overflow-x-hidden p-4 pb-28 lg:p-6">
+        <main className={cn("relative min-w-0 overflow-x-hidden p-4 pb-28 lg:p-6", isAdminMobileShell && "pb-32 lg:pb-6")}>
           {trialWarning ? <TrialWarningBanner subscription={subscription} /> : null}
           <div className={cn(isWorkspaceLocked && "pointer-events-none select-none blur-sm")}>
             <Outlet />
           </div>
         </main>
       </div>
+      {isAdminMobileShell ? (
+        <AdminMobileNavigation
+          pathname={location.pathname}
+          activePanel={mobileAdminPanel}
+          setActivePanel={setMobileAdminPanel}
+          onClosePanel={closeMobileAdminPanel}
+        />
+      ) : null}
       {isWorkspaceLocked ? <LockedWorkspaceOverlay subscription={subscription} user={user} updateSubscription={updateSubscription} /> : null}
     </div>
   );
@@ -218,6 +293,17 @@ const adminManagement = [
   { label: "Technician", path: "/staff", sourcePath: "/staff" },
   { label: "Inventory", path: "/inventory", sourcePath: "/inventory" },
 ];
+
+const mobileSectionIconTone = {
+  Customer: "bg-sky-50 text-sky-700",
+  Estimate: "bg-indigo-50 text-indigo-700",
+  Assignment: "bg-violet-50 text-violet-700",
+  Repair: "bg-emerald-50 text-emerald-700",
+  Billing: "bg-amber-50 text-amber-700",
+  Handover: "bg-teal-50 text-teal-700",
+  Technician: "bg-blue-50 text-blue-700",
+  Inventory: "bg-cyan-50 text-cyan-700",
+};
 
 function AdminSidebarNavigation({
   items,
@@ -325,6 +411,125 @@ function SidebarLink({ item, onNavigate }) {
       <Icon className="h-4 w-4" />
       {item.label}
     </NavLink>
+  );
+}
+
+function AdminMobileNavigation({ pathname, activePanel, setActivePanel, onClosePanel }) {
+  const createRepairVisible = pathname !== "/repair/new";
+
+  return (
+    <div className="lg:hidden">
+      {activePanel ? (
+        <div className="fixed inset-x-0 bottom-[5.35rem] z-40 px-3">
+          <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-2xl shadow-slate-900/20">
+            <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[var(--primary)]">
+                  {activePanel === "operations" ? <PanelTop className="h-5 w-5" /> : <Settings2 className="h-5 w-5" />}
+                </span>
+                <p className="text-sm font-black text-slate-900">{activePanel === "operations" ? "Operations" : "Management"}</p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={onClosePanel}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2 p-3">
+              {(activePanel === "operations" ? adminOperations : adminManagement).map((entry) => (
+                <MobileSectionLink key={entry.label} entry={entry} pathname={pathname} onNavigate={onClosePanel} />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {createRepairVisible && !activePanel ? (
+        <Link
+          to="/repair/new"
+          onClick={onClosePanel}
+          className="fixed bottom-[4.95rem] right-3 z-40 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f9f8f,#1769aa)] px-5 py-3.5 text-sm font-black uppercase tracking-wide !text-white shadow-xl shadow-blue-900/25 ring-1 ring-white/40"
+        >
+          <BadgePlus className="h-5 w-5" />
+          Create Repair
+        </Link>
+      ) : null}
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-10px_28px_rgba(15,23,42,0.1)] backdrop-blur">
+        <div className="grid grid-cols-3 gap-1.5">
+          <Link
+            to="/dashboard"
+            onClick={onClosePanel}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-black text-slate-500 transition",
+              (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) && "bg-blue-50 text-[var(--primary)]"
+            )}
+          >
+            <span className={cn(
+              "grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-500",
+              (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) && "bg-blue-100 text-[var(--primary)]"
+            )}>
+              <LayoutDashboard className="h-5 w-5" />
+            </span>
+            Dashboard
+          </Link>
+          <button
+            type="button"
+            onClick={() => setActivePanel(activePanel === "operations" ? null : "operations")}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-black text-slate-500 transition",
+              (activePanel === "operations" || adminOperations.some((entry) => isAdminOperationActive(pathname, entry.path))) && "bg-blue-50 text-[var(--primary)]"
+            )}
+          >
+            <span className={cn(
+              "grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-500",
+              (activePanel === "operations" || adminOperations.some((entry) => isAdminOperationActive(pathname, entry.path))) && "bg-teal-100 text-teal-700"
+            )}>
+              <Grid2X2 className="h-5 w-5" />
+            </span>
+            Operations
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePanel(activePanel === "management" ? null : "management")}
+            className={cn(
+              "flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-black text-slate-500 transition",
+              (activePanel === "management" || adminManagement.some((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`))) && "bg-blue-50 text-[var(--primary)]"
+            )}
+          >
+            <span className={cn(
+              "grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-500",
+              (activePanel === "management" || adminManagement.some((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`))) && "bg-indigo-100 text-indigo-700"
+            )}>
+              <Settings2 className="h-5 w-5" />
+            </span>
+            Management
+          </button>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function MobileSectionLink({ entry, pathname, onNavigate }) {
+  const active = entry.path === "/repair"
+    ? isAdminOperationActive(pathname, entry.path)
+    : pathname === entry.path || pathname.startsWith(`${entry.path}/`);
+  const source = navigation.find((item) => item.path === entry.sourcePath);
+  const Icon = source?.icon || FolderKanban;
+
+  return (
+    <Link
+      to={entry.path}
+      onClick={onNavigate}
+      className={cn(
+        "flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white px-3 py-3 text-sm font-bold text-slate-700 shadow-sm",
+        active && "border-blue-200 bg-blue-50 text-[var(--primary)]"
+      )}
+    >
+      <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", mobileSectionIconTone[entry.label] || "bg-slate-100 text-slate-600")}>
+        <Icon className="h-4 w-4" />
+      </span>
+      <span className="min-w-0 truncate">{entry.label}</span>
+    </Link>
   );
 }
 

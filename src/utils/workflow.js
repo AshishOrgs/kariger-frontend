@@ -48,7 +48,7 @@ export const isBillingEligibleTicket = (ticket, invoices = []) => {
     return false;
   }
 
-  const billableStatus = ["APPROVED", "IN_REPAIR", "WAITING_PARTS", "READY_FOR_DELIVERY", "DELIVERED"].includes(ticket.status);
+  const billableStatus = ["APPROVED", "IN_REPAIR", "WAITING_PARTS", "READY_FOR_REVIEW", "READY_FOR_DELIVERY", "DELIVERED"].includes(ticket.status);
   const hasEstimateData = Array.isArray(ticket.estimates) && ticket.estimates.length > 0;
   const hasUsageData = Array.isArray(ticket.partsUsage) || Array.isArray(ticket.partsUsages);
   const hasBillableEstimate = (ticket.estimates || []).some((estimate) => estimate.status === "APPROVED");

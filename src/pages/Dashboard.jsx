@@ -16,13 +16,29 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { Button } from "@/components/ui/Button";
-import { analyticsApi, assignmentsApi, staffApi, repairApi } from "@/services/modules";
+import {
+  analyticsApi,
+  assignmentsApi,
+  staffApi,
+  repairApi,
+} from "@/services/modules";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { formatCurrency, formatDate } from "@/utils/cn";
@@ -36,7 +52,8 @@ const colors = ["#1769aa", "#0f9f8f", "#b7791f", "#16794c"];
 
 const adminPanelClass =
   "rounded-[24px] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.06)]";
-const adminHoverClass = "transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.10)]";
+const adminHoverClass =
+  "transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.10)]";
 
 const displayName = (name, email) => name || email?.split("@")?.[0] || "User";
 
@@ -66,11 +83,11 @@ const getGreeting = () => {
   return "Good Evening";
 };
 
-
-
 function metric(data, keys) {
   for (const key of keys) {
-    const value = key.split(".").reduce((current, part) => current?.[part], data);
+    const value = key
+      .split(".")
+      .reduce((current, part) => current?.[part], data);
     if (value !== undefined) return value;
   }
   return 0;
@@ -87,41 +104,189 @@ export function Dashboard() {
     return <AdminDashboard />;
   }
 
-  const { data, isLoading } = useQuery({ queryKey: ["analytics", "owner-dashboard"], queryFn: () => analyticsApi.ownerDashboard() });
-  const statusQuery = useQuery({ queryKey: ["analytics", "status-breakdown"], queryFn: () => analyticsApi.statusBreakdown() });
-  const workloadQuery = useQuery({ queryKey: ["analytics", "technician-workload"], queryFn: () => analyticsApi.technicianWorkload() });
+  const { data, isLoading } = useQuery({
+    queryKey: ["analytics", "owner-dashboard"],
+    queryFn: () => analyticsApi.ownerDashboard(),
+  });
+  const statusQuery = useQuery({
+    queryKey: ["analytics", "status-breakdown"],
+    queryFn: () => analyticsApi.statusBreakdown(),
+  });
+  const workloadQuery = useQuery({
+    queryKey: ["analytics", "technician-workload"],
+    queryFn: () => analyticsApi.technicianWorkload(),
+  });
   const dashboard = data?.data || {};
-  const statusRows = chartRowsFromEnvelope(statusQuery.data, ["breakdown", "statuses", "rows"]);
-  const workloadRows = chartRowsFromEnvelope(workloadQuery.data, ["workload", "technicians", "rows"]);
+  const statusRows = chartRowsFromEnvelope(statusQuery.data, [
+    "breakdown",
+    "statuses",
+    "rows",
+  ]);
+  const workloadRows = chartRowsFromEnvelope(workloadQuery.data, [
+    "workload",
+    "technicians",
+    "rows",
+  ]);
 
   return (
     <>
-      <PageHeader title="Dashboard" description="Owner dashboard integrated with GET /analytics/dashboard/owner." />
+      <PageHeader
+        title="Dashboard"
+        description="Owner dashboard integrated with GET /analytics/dashboard/owner."
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Total Repairs" value={isLoading ? "..." : metric(dashboard, ["repairs.total", "totalRepairs", "repairsTotal"])} detail={`${metric(dashboard, ["repairs.active", "activeRepairs"])} active`} icon={<Wrench className="h-5 w-5" />} />
-        <KpiCard label="Revenue Summary" value={formatCurrency(metric(dashboard, ["revenueSummary.totalRevenue", "revenueSummary.collectedRevenue", "totalRevenue", "collectedRevenue", "revenue"]))} detail={`${formatCurrency(metric(dashboard, ["revenueSummary.collectedRevenue", "totalPaymentsCollected"]))} collected`} icon={<CreditCard className="h-5 w-5" />} />
-        <KpiCard label="Pending Dues" value={formatCurrency(metric(dashboard, ["revenueSummary.pendingDues", "pendingDues", "outstandingDues"]))} detail="Outstanding customer balance" icon={<BarChart3 className="h-5 w-5" />} />
-        <KpiCard label="Inventory Consumption" value={formatCurrency(metric(dashboard, ["inventoryConsumptionValue", "inventoryConsumption"]))} detail="Actual consumed value" icon={<PackageCheck className="h-5 w-5" />} />
+        <KpiCard
+          label="Total Repairs"
+          value={
+            isLoading
+              ? "..."
+              : metric(dashboard, [
+                  "repairs.total",
+                  "totalRepairs",
+                  "repairsTotal",
+                ])
+          }
+          detail={`${metric(dashboard, ["repairs.active", "activeRepairs"])} active`}
+          icon={<Wrench className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="Revenue Summary"
+          value={formatCurrency(
+            metric(dashboard, [
+              "revenueSummary.totalRevenue",
+              "revenueSummary.collectedRevenue",
+              "totalRevenue",
+              "collectedRevenue",
+              "revenue",
+            ]),
+          )}
+          detail={`${formatCurrency(metric(dashboard, ["revenueSummary.collectedRevenue", "totalPaymentsCollected"]))} collected`}
+          icon={<CreditCard className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="Pending Dues"
+          value={formatCurrency(
+            metric(dashboard, [
+              "revenueSummary.pendingDues",
+              "pendingDues",
+              "outstandingDues",
+            ]),
+          )}
+          detail="Outstanding customer balance"
+          icon={<BarChart3 className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="Inventory Consumption"
+          value={formatCurrency(
+            metric(dashboard, [
+              "inventoryConsumptionValue",
+              "inventoryConsumption",
+            ]),
+          )}
+          detail="Actual consumed value"
+          icon={<PackageCheck className="h-5 w-5" />}
+        />
       </div>
       <div className="mt-5 grid gap-5 xl:grid-cols-[1.4fr_1fr]">
         <Card>
-          <CardHeader><CardTitle>Technician Utilization</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Technician Utilization</CardTitle>
+          </CardHeader>
           <CardContent className="h-80">
-            {workloadRows.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={workloadRows}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="value" fill="#1769aa" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <EmptyState title="No workload data" description="Technician utilization uses backend workload analytics only." />}
+            {workloadRows.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={workloadRows}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="value" fill="#1769aa" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState
+                title="No workload data"
+                description="Technician utilization uses backend workload analytics only."
+              />
+            )}
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Repair KPIs</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Repair KPIs</CardTitle>
+          </CardHeader>
           <CardContent className="h-80">
-            {statusRows.length ? <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={statusRows} dataKey="value" nameKey="name" outerRadius={105} label>{statusRows.map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}</Pie><Tooltip /></PieChart></ResponsiveContainer> : <EmptyState title="No status data" description="Repair KPI chart uses backend status breakdown only." />}
+            {statusRows.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusRows}
+                    dataKey="value"
+                    nameKey="name"
+                    outerRadius={105}
+                    label
+                  >
+                    {statusRows.map((entry, index) => (
+                      <Cell
+                        key={entry.name}
+                        fill={colors[index % colors.length]}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <EmptyState
+                title="No status data"
+                description="Repair KPI chart uses backend status breakdown only."
+              />
+            )}
           </CardContent>
         </Card>
       </div>
       <Card className="mt-5">
-        <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle>Recent Activity</CardTitle>
+        </CardHeader>
         <CardContent className="p-0">
-          {(dashboard.recentActivities || []).length ? <Table><thead><tr><Th>Activity</Th><Th>Type</Th><Th>Date</Th></tr></thead><tbody>{dashboard.recentActivities.map((activity, index) => <tr key={activity.id || index}><Td>{activity.title || activity.message || activity.description || "Activity"}</Td><Td>{activity.type || activity.action || "Event"}</Td><Td>{activity.createdAt || activity.timestamp || activity.date}</Td></tr>)}</tbody></Table> : <div className="p-5"><EmptyState title="No recent activity" description="Recent activity will appear when the backend dashboard returns activity rows." /></div>}
+          {(dashboard.recentActivities || []).length ? (
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Activity</Th>
+                  <Th>Type</Th>
+                  <Th>Date</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {dashboard.recentActivities.map((activity, index) => (
+                  <tr key={activity.id || index}>
+                    <Td>
+                      {activity.title ||
+                        activity.message ||
+                        activity.description ||
+                        "Activity"}
+                    </Td>
+                    <Td>{activity.type || activity.action || "Event"}</Td>
+                    <Td>
+                      {activity.createdAt ||
+                        activity.timestamp ||
+                        activity.date}
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          ) : (
+            <div className="p-5">
+              <EmptyState
+                title="No recent activity"
+                description="Recent activity will appear when the backend dashboard returns activity rows."
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     </>
@@ -129,25 +294,63 @@ export function Dashboard() {
 }
 
 function TechnicianDashboard() {
-  const dashboardQuery = useQuery({ queryKey: ["technician", "dashboard"], queryFn: () => assignmentsApi.dashboard() });
-  const queueQuery = useQuery({ queryKey: ["technician", "queue", "dashboard"], queryFn: () => assignmentsApi.queue({ page: 1, limit: 10, sort: "priority" }) });
+  const dashboardQuery = useQuery({
+    queryKey: ["technician", "dashboard"],
+    queryFn: () => assignmentsApi.dashboard(),
+  });
+  const queueQuery = useQuery({
+    queryKey: ["technician", "queue", "dashboard"],
+    queryFn: () =>
+      assignmentsApi.queue({ page: 1, limit: 10, sort: "priority" }),
+  });
   const dashboard = dashboardQuery.data?.data?.dashboard || {};
   const assignments = queueQuery.data?.data?.assignments || [];
 
   return (
     <>
-      <PageHeader title="Dashboard" description="Technician dashboard for assigned repairs, estimates, parts usage, and handover work." />
+      <PageHeader
+        title="Dashboard"
+        description="Technician dashboard for assigned repairs, estimates, parts usage, and handover work."
+      />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard label="Assigned Repairs" value={dashboardQuery.isLoading ? "..." : dashboard.activeAssignments || 0} detail="Open assigned work" icon={<Wrench className="h-5 w-5" />} />
-        <KpiCard label="In Repair" value={dashboard.inRepairCount || 0} detail="Tickets currently in repair" icon={<PackageCheck className="h-5 w-5" />} />
-        <KpiCard label="Waiting Approval" value={dashboard.waitingApprovalCount || 0} detail="Customer approval pending" icon={<CheckCircle2 className="h-5 w-5" />} />
-        <KpiCard label="Parts Used" value={dashboard.inventoryConsumption?.usageCount || 0} detail={`${formatCurrency(dashboard.inventoryConsumption?.totalCost || 0)} consumed`} icon={<CreditCard className="h-5 w-5" />} />
+        <KpiCard
+          label="Assigned Repairs"
+          value={
+            dashboardQuery.isLoading ? "..." : dashboard.activeAssignments || 0
+          }
+          detail="Open assigned work"
+          icon={<Wrench className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="In Repair"
+          value={dashboard.inRepairCount || 0}
+          detail="Tickets currently in repair"
+          icon={<PackageCheck className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="Waiting Approval"
+          value={dashboard.waitingApprovalCount || 0}
+          detail="Customer approval pending"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+        />
+        <KpiCard
+          label="Parts Used"
+          value={dashboard.inventoryConsumption?.usageCount || 0}
+          detail={`${formatCurrency(dashboard.inventoryConsumption?.totalCost || 0)} consumed`}
+          icon={<CreditCard className="h-5 w-5" />}
+        />
       </div>
       <Card className="mt-5">
         <CardHeader>
           <CardTitle>My Assigned Repairs</CardTitle>
         </CardHeader>
-        <QueryState isLoading={queueQuery.isLoading} error={queueQuery.error} isEmpty={!assignments.length} emptyTitle="No assigned repairs" emptyDescription="Assigned repairs will appear here when the shop owner assigns tickets to you.">
+        <QueryState
+          isLoading={queueQuery.isLoading}
+          error={queueQuery.error}
+          isEmpty={!assignments.length}
+          emptyTitle="No assigned repairs"
+          emptyDescription="Assigned repairs will appear here when the shop owner assigns tickets to you."
+        >
           <CardContent className="p-0">
             <Table>
               <thead>
@@ -166,7 +369,9 @@ function TechnicianDashboard() {
                     <tr key={assignment.id}>
                       <Td>{ticketLabel(ticket)}</Td>
                       <Td>{ticket.customer?.fullName || "Customer"}</Td>
-                      <Td><StatusBadge status={ticket.status} /></Td>
+                      <Td>
+                        <StatusBadge status={ticket.status} />
+                      </Td>
                       <Td>{ticket.priority || "NORMAL"}</Td>
                       <Td>{formatDate(assignment.assignedAt)}</Td>
                     </tr>
@@ -197,41 +402,89 @@ function AdminDashboard() {
   });
 
   const refreshDashboard = () => {
-    queryClient.invalidateQueries({ queryKey: ["repair", "dashboard-tickets"] });
+    queryClient.invalidateQueries({
+      queryKey: ["repair", "dashboard-tickets"],
+    });
   };
 
-  const refreshStaff = () => queryClient.invalidateQueries({ queryKey: ["staff"] });
+  const refreshStaff = () =>
+    queryClient.invalidateQueries({ queryKey: ["staff"] });
 
   const statusMutation = useMutation({
-    mutationFn: ({ id, action }) => (action === "enable" ? staffApi.enable(id) : staffApi.disable(id)),
+    mutationFn: ({ id, action }) =>
+      action === "enable" ? staffApi.enable(id) : staffApi.disable(id),
     onSuccess: () => {
       refreshStaff();
       toast.success("Staff status updated.");
     },
-    onError: (error) => toast.error(error?.response?.data?.message || "Unable to update staff status."),
+    onError: (error) =>
+      toast.error(
+        error?.response?.data?.message || "Unable to update staff status.",
+      ),
   });
 
   const updateStatusMutation = useMutation({
-    mutationFn: ({ ticketId, status, reason }) => repairApi.updateStatus(ticketId, { status, reason }),
+    mutationFn: ({ ticketId, status, reason }) =>
+      repairApi.updateStatus(ticketId, { status, reason }),
     onSuccess: () => {
       refreshDashboard();
       toast.success("Ticket status updated successfully.");
     },
-    onError: (error) => toast.error(error?.response?.data?.message || "Unable to update ticket status."),
+    onError: (error) =>
+      toast.error(
+        error?.response?.data?.message || "Unable to update ticket status.",
+      ),
   });
 
-  const technicians = useMemo(() => staffQuery.data?.data?.staff || [], [staffQuery.data]);
-  const tickets = useMemo(() => ticketsQuery.data?.data?.tickets || [], [ticketsQuery.data]);
+  const technicians = useMemo(
+    () => staffQuery.data?.data?.staff || [],
+    [staffQuery.data],
+  );
+  const tickets = useMemo(
+    () => ticketsQuery.data?.data?.tickets || [],
+    [ticketsQuery.data],
+  );
 
   const reviewQueue = useMemo(() => {
     return tickets.filter((t) => t.status === "READY_FOR_REVIEW");
   }, [tickets]);
 
-  const pendingTickets = useMemo(() => tickets.filter((t) => t.status === "RECEIVED").length, [tickets]);
-  const assignedTickets = useMemo(() => tickets.filter((t) => ["DIAGNOSING", "ESTIMATE_PENDING", "APPROVED", "IN_REPAIR", "WAITING_PARTS", "WAITING_APPROVAL", "SENT_TO_VENDOR"].includes(t.status)).length, [tickets]);
-  const readyForReview = useMemo(() => tickets.filter((t) => t.status === "READY_FOR_REVIEW").length, [tickets]);
-  const pendingBilling = useMemo(() => tickets.filter((t) => t.status === "READY_FOR_DELIVERY" && (!t.finalInvoiceAmount || Number(t.finalInvoiceAmount) === 0)).length, [tickets]);
-  const pendingHandover = useMemo(() => tickets.filter((t) => t.status === "READY_FOR_DELIVERY").length, [tickets]);
+  const pendingTickets = useMemo(
+    () => tickets.filter((t) => t.status === "RECEIVED").length,
+    [tickets],
+  );
+  const assignedTickets = useMemo(
+    () =>
+      tickets.filter((t) =>
+        [
+          "DIAGNOSING",
+          "ESTIMATE_PENDING",
+          "APPROVED",
+          "IN_REPAIR",
+          "WAITING_PARTS",
+          "WAITING_APPROVAL",
+          "SENT_TO_VENDOR",
+        ].includes(t.status),
+      ).length,
+    [tickets],
+  );
+  const readyForReview = useMemo(
+    () => tickets.filter((t) => t.status === "READY_FOR_REVIEW").length,
+    [tickets],
+  );
+  const pendingBilling = useMemo(
+    () =>
+      tickets.filter(
+        (t) =>
+          t.status === "READY_FOR_DELIVERY" &&
+          (!t.finalInvoiceAmount || Number(t.finalInvoiceAmount) === 0),
+      ).length,
+    [tickets],
+  );
+  const pendingHandover = useMemo(
+    () => tickets.filter((t) => t.status === "READY_FOR_DELIVERY").length,
+    [tickets],
+  );
   const statusChartRows = useMemo(() => {
     const counts = tickets.reduce((acc, ticket) => {
       const status = ticket.status || "UNKNOWN";
@@ -244,20 +497,36 @@ function AdminDashboard() {
   const technicianWorkload = useMemo(() => {
     return technicians.map((tech) => {
       const active = tickets.filter((t) => {
-        const isActive = ["DIAGNOSING", "APPROVED", "IN_REPAIR", "WAITING_PARTS", "SENT_TO_VENDOR"].includes(t.status);
-        const isAssigned = t.assignments?.some((a) => a.assignedToStaffId === tech.id);
+        const isActive = [
+          "DIAGNOSING",
+          "APPROVED",
+          "IN_REPAIR",
+          "WAITING_PARTS",
+          "SENT_TO_VENDOR",
+        ].includes(t.status);
+        const isAssigned = t.assignments?.some(
+          (a) => a.assignedToStaffId === tech.id,
+        );
         return isActive && isAssigned;
       }).length;
 
       const review = tickets.filter((t) => {
         const isReview = t.status === "READY_FOR_REVIEW";
-        const isAssigned = t.assignments?.some((a) => a.assignedToStaffId === tech.id);
+        const isAssigned = t.assignments?.some(
+          (a) => a.assignedToStaffId === tech.id,
+        );
         return isReview && isAssigned;
       }).length;
 
       const completed = tickets.filter((t) => {
-        const isCompleted = ["READY_FOR_DELIVERY", "DELIVERED", "CLOSED"].includes(t.status);
-        const isAssigned = t.assignments?.some((a) => a.assignedToStaffId === tech.id);
+        const isCompleted = [
+          "READY_FOR_DELIVERY",
+          "DELIVERED",
+          "CLOSED",
+        ].includes(t.status);
+        const isAssigned = t.assignments?.some(
+          (a) => a.assignedToStaffId === tech.id,
+        );
         return isCompleted && isAssigned;
       }).length;
 
@@ -327,16 +596,30 @@ function AdminDashboard() {
             {statusChartRows.length ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={statusChartRows} dataKey="value" nameKey="name" innerRadius={62} outerRadius={105} paddingAngle={3} label>
+                  <Pie
+                    data={statusChartRows}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={62}
+                    outerRadius={105}
+                    paddingAngle={3}
+                    label
+                  >
                     {statusChartRows.map((entry, index) => (
-                      <Cell key={entry.name} fill={colors[index % colors.length]} />
+                      <Cell
+                        key={entry.name}
+                        fill={colors[index % colors.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyState title="No repair data" description="Repair status chart will appear after tickets are created." />
+              <EmptyState
+                title="No repair data"
+                description="Repair status chart will appear after tickets are created."
+              />
             )}
           </CardContent>
         </Card>
@@ -353,12 +636,25 @@ function AdminDashboard() {
                   <XAxis dataKey="fullName" />
                   <YAxis allowDecimals={false} />
                   <Tooltip />
-                  <Bar dataKey="activeRepairs" name="Active Repairs" fill="#1769aa" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="completedRepairs" name="Completed" fill="#0f9f8f" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="activeRepairs"
+                    name="Active Repairs"
+                    fill="#1769aa"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="completedRepairs"
+                    name="Completed"
+                    fill="#0f9f8f"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <EmptyState title="No technician data" description="Technician workload appears after staff and repairs are assigned." />
+              <EmptyState
+                title="No technician data"
+                description="Technician workload appears after staff and repairs are assigned."
+              />
             )}
           </CardContent>
         </Card>
@@ -371,7 +667,10 @@ function AdminDashboard() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
-            <Link to="/repair" className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
+            <Link
+              to="/repair"
+              className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
+            >
               <div className="rounded-lg bg-blue-50 p-3 text-blue-600">
                 <Wrench className="h-5 w-5" />
               </div>
@@ -381,7 +680,10 @@ function AdminDashboard() {
               </div>
             </Link>
 
-            <Link to="/customers" className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
+            <Link
+              to="/customers"
+              className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
+            >
               <div className="rounded-lg bg-green-50 p-3 text-green-600">
                 <Users className="h-5 w-5" />
               </div>
@@ -391,7 +693,10 @@ function AdminDashboard() {
               </div>
             </Link>
 
-            <Link to="/repair/estimates" className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
+            <Link
+              to="/repair/estimates"
+              className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
+            >
               <div className="rounded-lg bg-yellow-50 p-3 text-yellow-600">
                 <CheckCircle2 className="h-5 w-5" />
               </div>
@@ -401,12 +706,17 @@ function AdminDashboard() {
               </div>
             </Link>
 
-            <Link to="/billing" className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
+            <Link
+              to="/billing"
+              className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-white p-4 shadow-sm transition-all hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
+            >
               <div className="rounded-lg bg-purple-50 p-3 text-purple-600">
                 <CreditCard className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-semibold text-slate-900">Billing & Invoices</p>
+                <p className="font-semibold text-slate-900">
+                  Billing & Invoices
+                </p>
                 <p className="text-xs text-slate-500">Payments & invoices</p>
               </div>
             </Link>
@@ -442,26 +752,62 @@ function AdminDashboard() {
                 {reviewQueue.map((ticket) => (
                   <tr key={ticket.id}>
                     <Td>
-                      <div className="font-semibold text-slate-900">{ticketLabel(ticket)}</div>
-                      <div className="text-xs text-slate-500">{ticket.title}</div>
+                      <div className="font-semibold text-slate-900">
+                        {ticketLabel(ticket)}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {ticket.title}
+                      </div>
                     </Td>
                     <Td>
-                      <div className="text-sm font-medium text-slate-900">{ticket.customer?.fullName}</div>
-                      <div className="text-xs text-slate-500">{ticket.customer?.phone}</div>
+                      <div className="text-sm font-medium text-slate-900">
+                        {ticket.customer?.fullName}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {ticket.customer?.phone}
+                      </div>
                     </Td>
                     <Td>
-                      <div className="text-sm"><strong className="text-slate-700">Diagnosis:</strong> {ticket.diagnosis || "No diagnosis details"}</div>
-                      {ticket.workPerformed && <div className="text-xs text-slate-600 mt-1"><strong className="text-slate-700">Work:</strong> {ticket.workPerformed}</div>}
-                      {ticket.repairNotes && <div className="text-xs text-slate-500 mt-1"><strong className="text-slate-700">Notes:</strong> {ticket.repairNotes}</div>}
+                      <div className="text-sm">
+                        <strong className="text-slate-700">Diagnosis:</strong>{" "}
+                        {ticket.diagnosis || "No diagnosis details"}
+                      </div>
+                      {ticket.workPerformed && (
+                        <div className="text-xs text-slate-600 mt-1">
+                          <strong className="text-slate-700">Work:</strong>{" "}
+                          {ticket.workPerformed}
+                        </div>
+                      )}
+                      {ticket.repairNotes && (
+                        <div className="text-xs text-slate-500 mt-1">
+                          <strong className="text-slate-700">Notes:</strong>{" "}
+                          {ticket.repairNotes}
+                        </div>
+                      )}
                     </Td>
                     <Td>
                       <div className="text-xs space-y-1">
-                        <div>Labor: {formatCurrency(ticket.laborCost || 0)}</div>
-                        <div>Parts: {formatCurrency(ticket.partsCost || 0)}</div>
-                        {Number(ticket.vendorCost || 0) > 0 && <div>Vendor: {formatCurrency(ticket.vendorCost)}</div>}
-                        <div className="border-t pt-1 font-semibold text-slate-800">Actual Cost: {formatCurrency(Number(ticket.laborCost || 0) + Number(ticket.partsCost || 0) + Number(ticket.vendorCost || 0))}</div>
+                        <div>
+                          Labor: {formatCurrency(ticket.laborCost || 0)}
+                        </div>
+                        <div>
+                          Parts: {formatCurrency(ticket.partsCost || 0)}
+                        </div>
+                        {Number(ticket.vendorCost || 0) > 0 && (
+                          <div>Vendor: {formatCurrency(ticket.vendorCost)}</div>
+                        )}
+                        <div className="border-t pt-1 font-semibold text-slate-800">
+                          Actual Cost:{" "}
+                          {formatCurrency(
+                            Number(ticket.laborCost || 0) +
+                              Number(ticket.partsCost || 0) +
+                              Number(ticket.vendorCost || 0),
+                          )}
+                        </div>
                         {Number(ticket.finalInvoiceAmount || 0) > 0 && (
-                          <div className="text-blue-700 font-semibold">Billed: {formatCurrency(ticket.finalInvoiceAmount)}</div>
+                          <div className="text-blue-700 font-semibold">
+                            Billed: {formatCurrency(ticket.finalInvoiceAmount)}
+                          </div>
                         )}
                       </div>
                     </Td>
@@ -496,8 +842,17 @@ function AdminDashboard() {
                           Return to Technician
                         </Button>
                         <div className="flex gap-1">
-                          <Link className="flex-1" to={`/billing?ticketId=${ticket.id}`}>
-                            <Button size="sm" variant="secondary" className="w-full">Invoice</Button>
+                          <Link
+                            className="flex-1"
+                            to={`/billing?ticketId=${ticket.id}`}
+                          >
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="w-full"
+                            >
+                              Invoice
+                            </Button>
                           </Link>
                           <Button
                             size="sm"
@@ -551,10 +906,18 @@ function AdminDashboard() {
                 <tbody>
                   {technicianWorkload.map((tech) => (
                     <tr key={tech.technicianId}>
-                      <Td className="font-semibold text-slate-900">{tech.fullName}</Td>
-                      <Td className="text-center font-semibold text-indigo-600">{tech.activeRepairs}</Td>
-                      <Td className="text-center font-semibold text-yellow-600">{tech.pendingReview}</Td>
-                      <Td className="text-center font-semibold text-green-600">{tech.completedRepairs}</Td>
+                      <Td className="font-semibold text-slate-900">
+                        {tech.fullName}
+                      </Td>
+                      <Td className="text-center font-semibold text-indigo-600">
+                        {tech.activeRepairs}
+                      </Td>
+                      <Td className="text-center font-semibold text-yellow-600">
+                        {tech.pendingReview}
+                      </Td>
+                      <Td className="text-center font-semibold text-green-600">
+                        {tech.completedRepairs}
+                      </Td>
                     </tr>
                   ))}
                 </tbody>
@@ -591,11 +954,17 @@ function AdminDashboard() {
                   {technicians.map((tech) => (
                     <tr key={tech.id}>
                       <Td>
-                        <div className="font-semibold text-slate-900">{tech.fullName}</div>
-                        <div className="text-xs text-slate-500">{tech.email}</div>
+                        <div className="font-semibold text-slate-900">
+                          {tech.fullName}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {tech.email}
+                        </div>
                       </Td>
                       <Td>
-                        <span className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${tech.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                        <span
+                          className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 ${tech.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
+                        >
                           {tech.isActive ? "Active" : "Disabled"}
                         </span>
                       </Td>

@@ -9,6 +9,7 @@ const tones = {
   IN_REPAIR: "bg-blue-50 text-blue-800",
   WAITING_PARTS: "bg-orange-50 text-orange-800",
   SENT_TO_VENDOR: "bg-purple-50 text-purple-800",
+  READY_FOR_REVIEW: "bg-indigo-50 text-indigo-800",
   READY_FOR_DELIVERY: "bg-teal-50 text-teal-800",
   DELIVERED: "bg-green-50 text-green-800",
   CANCELLED: "bg-red-50 text-red-800",

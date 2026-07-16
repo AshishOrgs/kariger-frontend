@@ -190,11 +190,19 @@ function NextRepairStep({ ticket }) {
   }
 
   if (["APPROVED", "IN_REPAIR", "WAITING_PARTS", "READY_FOR_REVIEW"].includes(status)) {
-    return <Link to={`/repair?ticketId=${ticket.id}`}><Button size="sm" type="button">Technician report</Button></Link>;
+    return <Link to={`/repair?ticketId=${ticket.id}`}><Button size="sm" type="button">Technician Report</Button></Link>;
   }
 
-  if (["READY_FOR_DELIVERY", "DELIVERED"].includes(status)) {
+  if (status === "READY_FOR_DELIVERY") {
+    if (ticket.paymentStatus !== "PAID") {
+      return <Link to={`/repair?ticketId=${ticket.id}`}><Button size="sm" type="button">Technician Report</Button></Link>;
+    }
+
     return <Link to={`/handover?ticketId=${ticket.id}`}><Button size="sm" type="button">Handover</Button></Link>;
+  }
+
+  if (status === "DELIVERED") {
+    return <span className="text-sm text-[var(--muted)]">Delivered</span>;
   }
 
   return <span className="text-sm text-[var(--muted)]">Review</span>;

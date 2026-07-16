@@ -141,8 +141,6 @@ export function Estimates() {
                       { itemType: "LABOR", name: "Labor Cost", quantity: 1, unitAmount: Number(form.get("laborCost") || 0) },
                       { itemType: "PART", name: "Parts Cost", quantity: 1, unitAmount: Number(form.get("partsCost") || 0) },
                     ],
-                    taxRate: Number(form.get("tax") || 0),
-                    discountAmount: Number(form.get("discount") || 0),
                     notes: repairNote,
                   },
                 });
@@ -153,11 +151,9 @@ export function Estimates() {
               </Select>
               {!createCandidates.length ? <p className="text-sm text-[var(--muted)]">No tickets are eligible for estimate creation right now. Created estimates appear in history below.</p> : null}
               <Textarea name="repairNote" placeholder="Diagnosis, estimate repair note, and customer note" required disabled={!createCandidates.length} />
-              <Input name="estimatedTurnaroundHours" type="number" placeholder="Turnaround hours" disabled={!createCandidates.length} />
-              <Input name="laborCost" type="number" placeholder="Labor Cost" disabled={!createCandidates.length} />
-              <Input name="partsCost" type="number" placeholder="Parts Cost" disabled={!createCandidates.length} />
-              <Input name="tax" type="number" placeholder="Tax %" disabled={!createCandidates.length} />
-              <Input name="discount" type="number" placeholder="Discount" disabled={!createCandidates.length} />
+              <Input name="estimatedTurnaroundHours" inputMode="numeric" pattern="[0-9]*" placeholder="Turnaround hours" disabled={!createCandidates.length} />
+              <Input name="laborCost" inputMode="decimal" placeholder="Labor Cost" disabled={!createCandidates.length} />
+              <Input name="partsCost" inputMode="decimal" placeholder="Parts Cost" disabled={!createCandidates.length} />
               <Button className="w-full" disabled={mutation.isPending || createCandidates.length === 0}>Create Estimate</Button>
             </form>
             {visibleCreatedEstimate ? (

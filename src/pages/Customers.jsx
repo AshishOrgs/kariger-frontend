@@ -252,10 +252,9 @@ function TicketHistoryCard({ tickets, isLoading }) {
         ) : tickets.length ? (
           <div className="divide-y divide-[var(--border)]">
             {tickets.map((ticket) => (
-              <Link
+              <div
                 key={ticket.id}
-                to={`/repair?ticketId=${encodeURIComponent(ticket.id)}`}
-                className="grid gap-3 p-4 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1fr)_auto]"
+                className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto]"
               >
                 <div className="min-w-0">
                   <p className="truncate font-black text-slate-950">{ticketLabel(ticket)}</p>
@@ -266,7 +265,7 @@ function TicketHistoryCard({ tickets, isLoading }) {
                   <StatusBadge status={ticket.status} />
                   <StatusBadge status={ticket.priority || "NORMAL"} />
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         ) : (

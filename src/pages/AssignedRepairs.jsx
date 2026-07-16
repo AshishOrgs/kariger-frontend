@@ -87,12 +87,12 @@ export function AssignedRepairs() {
     }
   }, [ticket]);
 
-  // Mutation: Save technician report and mark the repair as ready for delivery.
+  // Mutation: Save technician report and send it to Admin review.
   const submitReportMutation = useNotifyMutation({
     mutationFn: async (payload) => {
       await repairApi.updateExecution(selectedTicketId, payload);
 
-      if (ticket?.status === "READY_FOR_DELIVERY") {
+      if (["READY_FOR_REVIEW", "READY_FOR_DELIVERY"].includes(ticket?.status)) {
         return null;
       }
 
@@ -105,14 +105,14 @@ export function AssignedRepairs() {
 
       if (["DIAGNOSING", "APPROVED", "WAITING_PARTS", "IN_REPAIR", "SENT_TO_VENDOR"].includes(ticket?.status)) {
         await repairApi.updateStatus(selectedTicketId, {
-          status: "READY_FOR_DELIVERY",
-          reason: "Technician submitted final repair report. Repair is ready for delivery.",
+          status: "READY_FOR_REVIEW",
+          reason: "Technician submitted final repair report for admin review.",
         });
       }
 
       return null;
     },
-    successMessage: "Technician report submitted. Repair marked ready for delivery.",
+    successMessage: "Technician report submitted for admin review.",
     onSuccess: () => {
       setActiveTab("completed");
       queryClient.invalidateQueries({ queryKey: ["repair-ticket-detail", selectedTicketId] });
@@ -397,7 +397,7 @@ export function AssignedRepairs() {
 
                       <Button
                         type="submit"
-                        disabled={submitReportMutation.isPending || partsUsages.length === 0}
+                        disabled={submitReportMutation.isPending}
                         className="w-full flex items-center justify-center gap-2"
                       >
                         {submitReportMutation.isPending ? (
@@ -408,13 +408,13 @@ export function AssignedRepairs() {
                         ) : (
                           <>
                             <Save className="h-4 w-4" />
-                            {partsUsages.length ? "Submit Final Repair Report" : "Use Item Parts Before Submit"}
+                            Submit Final Repair Report
                           </>
                         )}
                       </Button>
                       {partsUsages.length === 0 ? (
                         <p className="text-center text-xs text-slate-500">
-                          Use item parts first so this report is submitted with clear repair consumption history.
+                          No item parts used for this repair. You can still submit the technician report.
                         </p>
                       ) : null}
                     </form>

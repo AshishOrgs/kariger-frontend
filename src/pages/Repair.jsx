@@ -101,7 +101,13 @@ export function Repair() {
 }
 
 export function CreateRepair() {
-  const mutation = useNotifyMutation({ mutationFn: repairApi.create, successMessage: "Repair ticket created successfully.", limitResource: "devices" });
+  const queryClient = useQueryClient();
+  const mutation = useNotifyMutation({
+    mutationFn: repairApi.create,
+    successMessage: "Repair ticket created successfully.",
+    limitResource: "devices",
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["repair"] }),
+  });
   const createdTicket = mutation.data?.data?.ticket;
 
   return (
@@ -109,7 +115,7 @@ export function CreateRepair() {
       <PageHeader title="Create Repair" description="Customer intake creates customer information, device registration, ticket details, and initial issue notes." />
       <Card>
         <CardContent>
-          <form className="grid gap-4 md:grid-cols-2" onSubmit={(event) => {
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={async (event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
             const itemName = String(form.get("itemName") || "").trim();
@@ -121,14 +127,19 @@ export function CreateRepair() {
                 ? { imei: itemIdentifier }
                 : { serialNumber: itemIdentifier }
               : {};
-            mutation.mutate({
-              customer: { fullName: form.get("fullName"), phone: form.get("phone") },
-              title: `${itemName} repair`,
-              description: issueDescription,
-              priority: form.get("priority"),
-              items: [{ itemType: "PHONE", brand: itemName, model: itemName, ...identifierPayload }],
-              issues: [{ title: issueTitle, description: issueDescription }],
-            });
+            try {
+              await mutation.mutateAsync({
+                customer: { fullName: form.get("fullName"), phone: form.get("phone") },
+                title: `${itemName} repair`,
+                description: issueDescription,
+                priority: form.get("priority"),
+                items: [{ itemType: "PHONE", brand: itemName, model: itemName, ...identifierPayload }],
+                issues: [{ title: issueTitle, description: issueDescription }],
+              });
+              event.currentTarget.reset();
+            } catch {
+              // Error toast is handled by the mutation.
+            }
           }}>
             <Input name="fullName" placeholder="Customer name" required />
             <Input name="phone" placeholder="Phone" required />

@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Building2, Eye, EyeOff, UserPlus } from "lucide-react";
+import { Building2, UserPlus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Field, Input, Textarea } from "@/components/ui/Form";
+import { Field, Input, PasswordInput, Textarea } from "@/components/ui/Form";
 import { authApi } from "@/services/modules";
 import loginBg from "@/public/assets/login_bg.png";
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  mobile: z.string().min(7, "Mobile number is required"),
+  mobile: z.string().regex(/^\d{10,12}$/, "Mobile number must be 10 to 12 digits"),
   shopName: z.string().min(1, "Shop name is required"),
   address: z.string().min(1, "Address is required"),
   email: z.string().email("Valid email is required"),
@@ -22,7 +22,6 @@ const signupSchema = z.object({
 export function Signup() {
   const navigate = useNavigate();
   const [success, setSuccess] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const form = useForm({
     resolver: zodResolver(signupSchema),
     defaultValues: {
@@ -92,23 +91,11 @@ export function Signup() {
               <Input type="email" autoComplete="email" placeholder="owner@shop.com" {...form.register("email")} />
             </Field>
             <Field label="Password" error={form.formState.errors.password?.message}>
-              <div className="relative">
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  placeholder="Minimum 8 characters"
-                  className="pr-10"
-                  {...form.register("password")}
-                />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-3 grid place-items-center text-slate-400 hover:text-slate-700"
-                  onClick={() => setShowPassword((value) => !value)}
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <PasswordInput
+                autoComplete="new-password"
+                placeholder="Minimum 8 characters"
+                {...form.register("password")}
+              />
             </Field>
             <Field label="Shop address" error={form.formState.errors.address?.message} className="md:col-span-2">
               <Textarea placeholder="Full shop address" {...form.register("address")} />

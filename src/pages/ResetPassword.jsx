@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Field, Input } from "@/components/ui/Form";
+import { Field, PasswordInput } from "@/components/ui/Form";
 import { authApi } from "@/services/modules";
 import loginBg from "@/public/assets/login_bg.png";
 
@@ -68,10 +68,10 @@ export function ResetPassword() {
         <CardContent className="p-6">
           <form className="space-y-4" onSubmit={form.handleSubmit(submit)}>
             <Field label="New password" error={form.formState.errors.password?.message}>
-              <Input type="password" autoComplete="new-password" placeholder="At least 8 characters" {...form.register("password")} />
+              <PasswordInput autoComplete="new-password" placeholder="At least 8 characters" {...form.register("password")} />
             </Field>
             <Field label="Confirm password" error={form.formState.errors.confirmPassword?.message}>
-              <Input type="password" autoComplete="new-password" placeholder="Repeat new password" {...form.register("confirmPassword")} />
+              <PasswordInput autoComplete="new-password" placeholder="Repeat new password" {...form.register("confirmPassword")} />
             </Field>
             {form.formState.errors.root ? (
               <div className="rounded-lg bg-red-50 border border-red-100 p-3 text-xs text-red-600 font-semibold">

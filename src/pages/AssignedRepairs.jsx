@@ -35,6 +35,7 @@ function getLatestEstimate(ticket) {
 
 export function AssignedRepairs() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialTab = ["assigned", "active", "completed"].includes(searchParams.get("tab"))
     ? searchParams.get("tab")
@@ -118,6 +119,7 @@ export function AssignedRepairs() {
       queryClient.invalidateQueries({ queryKey: ["repair-ticket-detail", selectedTicketId] });
       queryClient.invalidateQueries({ queryKey: ["repair-ticket-parts-usage", selectedTicketId] });
       queryClient.invalidateQueries({ queryKey: ["technician-assigned-repairs"] });
+      navigate(`/repair?ticketId=${selectedTicketId}`);
     },
   });
 
@@ -238,7 +240,7 @@ export function AssignedRepairs() {
                         variant={isCurrent ? "secondary" : "primary"}
                         onClick={() => setSelectedTicketId(ticket.id)}
                       >
-                        {isCurrent ? "Active" : "Manage"}
+                        {isCurrent ? "Active" : "Ticket"}
                       </Button>
                     );
                   },

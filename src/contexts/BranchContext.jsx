@@ -3,26 +3,28 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { ALL_BRANCHES, getSelectedBranchId, setSelectedBranchId as persistSelectedBranchId } from "@/services/api";
 import { branchesApi } from "@/services/modules";
+import { PERMISSIONS } from "@/utils/permissions";
 
 const BranchContext = createContext(null);
 
 export function BranchProvider({ children }) {
-  const { hasRole } = useAuth();
-  const isOwner = hasRole("OWNER");
+  const { accessScope, hasPermission } = useAuth();
+  const hasBranchVisibility = hasPermission(PERMISSIONS.BRANCH_VIEW, PERMISSIONS.BRANCH_MANAGE);
+  const canSelectAcrossBranches = ["allBranches", "platform", "selectedBranches"].includes(accessScope?.branchScope);
   const [selectedBranchId, setSelectedBranchIdState] = useState(() => getSelectedBranchId() || ALL_BRANCHES);
 
   const branchesQuery = useQuery({
     queryKey: ["branches"],
     queryFn: branchesApi.list,
-    enabled: isOwner,
+    enabled: hasBranchVisibility,
   });
 
   useEffect(() => {
-    if (!isOwner) {
+    if (!canSelectAcrossBranches) {
       persistSelectedBranchId("");
       setSelectedBranchIdState(ALL_BRANCHES);
     }
-  }, [isOwner]);
+  }, [canSelectAcrossBranches]);
 
   const branches = useMemo(() => branchesQuery.data?.data?.branches || [], [branchesQuery.data]);
 

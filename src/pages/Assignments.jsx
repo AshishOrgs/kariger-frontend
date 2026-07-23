@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Input, Select, Textarea } from "@/components/ui/Form";
+import { Input, Select } from "@/components/ui/Form";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -11,6 +11,7 @@ import { Timeline } from "@/components/ui/Timeline";
 import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
 import { assignmentsApi, repairApi, staffApi } from "@/services/modules";
+import { useAuth } from "@/contexts/AuthContext";
 import { unwrapArray } from "@/utils/cn";
 import { displayValue } from "@/utils/data";
 import { isActiveAssignment, isTerminalTicketStatus } from "@/utils/workflow";
@@ -18,7 +19,9 @@ import { ticketLabel } from "@/utils/ticketLabel";
 
 export function Assignments() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
   const preselectedTicketId = searchParams.get("ticketId") || "";
   const [selectedTicketId, setSelectedTicketId] = useState(preselectedTicketId);
   const [lastAssignedTicketId, setLastAssignedTicketId] = useState("");
@@ -38,6 +41,16 @@ export function Assignments() {
       branchId: member.branchId,
       branchName: member.branch?.name,
     }));
+  const selfTechnician = user?.id || user?.staffId
+    ? [{
+        id: user.id || user.staffId,
+        name: "Myself",
+        email: user.email,
+        branchId: user.branchId,
+        branchName: user.branch?.name,
+        isSelf: true,
+      }]
+    : [];
   const dashboard = dashboardQuery.data?.data || {};
   const activeTicketId = selectedTicketId || tickets[0]?.id || "";
   const historyQuery = useQuery({
@@ -60,15 +73,17 @@ export function Assignments() {
     ])
   );
   const ticketHasActiveAssignment = (ticket) => (assignmentRecordsByTicket.get(ticket.id) || []).some(isActiveAssignment);
-  const technicians = mergeTechnicians(
-    branchTechnicians,
-    uniqueTechnicians([
-      ...queue,
-      ...history,
-      ...[...assignmentRecordsByTicket.values()].flat(),
-      ...tickets.flatMap((ticket) => ticket.assignments || []),
-    ])
-  );
+  const technicians = branchTechnicians.length
+    ? mergeTechnicians(
+        branchTechnicians,
+        uniqueTechnicians([
+          ...queue,
+          ...history,
+          ...[...assignmentRecordsByTicket.values()].flat(),
+          ...tickets.flatMap((ticket) => ticket.assignments || []),
+        ])
+      )
+    : selfTechnician;
   const assignableTickets = tickets.filter((ticket) => !isTerminalTicketStatus(ticket.status) && !ticketHasActiveAssignment(ticket));
   const reassignableTickets = tickets.filter((ticket) => !isTerminalTicketStatus(ticket.status) && ticketHasActiveAssignment(ticket));
   const mutation = useNotifyMutation({
@@ -77,18 +92,19 @@ export function Assignments() {
     onSuccess: async (_data, variables) => {
       setLastAssignedTicketId(variables.ticketId);
       setSelectedTicketId(variables.ticketId);
-      await queryClient.invalidateQueries();
+      await refreshAssignmentWorkflowQueries(queryClient, variables.ticketId);
+      navigate(`/technician/repairs?tab=assigned&ticketId=${variables.ticketId}`);
     },
   });
   const reassign = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.reassign(ticketId, payload),
     successMessage: "Technician reassigned.",
-    onSuccess: () => queryClient.invalidateQueries(),
+    onSuccess: (_data, variables) => refreshAssignmentWorkflowQueries(queryClient, variables.ticketId),
   });
   const workflowTicket = tickets.find((ticket) => ticket.id === activeTicketId) || tickets[0] || null;
 
   return (
-    <OperationsWorkflowPage current="assignment" ticket={workflowTicket} ticketId={activeTicketId} showContinue={false}>
+    <OperationsWorkflowPage current="assignment" ticket={workflowTicket} ticketId={activeTicketId} showContinue={false} showSummary={false}>
       <PageHeader title="Assignments" description="Assign technicians, track assignment history, and keep operational notes aligned with each repair." />
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="space-y-5">
@@ -171,9 +187,9 @@ export function Assignments() {
             }}
           />
           {lastAssignedTicketId ? (
-            <Link to={`/repair?ticketId=${lastAssignedTicketId}`}>
-              <Button className="w-full" type="button">Go to Repair</Button>
-            </Link>
+            <Button className="w-full" type="button" variant="secondary" onClick={() => navigate(`/technician/repairs?tab=assigned&ticketId=${lastAssignedTicketId}`)}>
+              Go to My Repairs
+            </Button>
           ) : null}
         </div>
       </div>
@@ -200,7 +216,6 @@ function AssignmentForm({ mode, setMode, defaultTicketId, assignableTickets, rea
           onSubmit(form.get("ticketId"), {
             technicianId: form.get("technicianId"),
             reason: form.get("reason") || undefined,
-            notes: form.get("notes"),
           });
         }}>
           <Select value={mode} onChange={(event) => setMode(event.target.value)}>
@@ -211,12 +226,14 @@ function AssignmentForm({ mode, setMode, defaultTicketId, assignableTickets, rea
             {tickets.map((ticket) => <option key={ticket.id} value={ticket.id}>{ticketLabel(ticket)}</option>)}
           </Select>
           {!tickets.length ? <p className="text-xs text-[var(--muted)]">{emptyMessage}</p> : null}
-          <Select name="technicianId" disabled={!technicians.length}>
-            {technicians.map((tech) => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
-          </Select>
-          {!technicians.length ? <p className="text-xs text-[var(--muted)]">No active technicians found in this branch. Create or enable a technician first.</p> : null}
+          <div className="space-y-1">
+            <p className="text-xs font-black uppercase tracking-wider text-slate-500">Assign To</p>
+            <Select name="technicianId" disabled={!technicians.length}>
+              {technicians.map((tech) => <option key={tech.id} value={tech.id}>{tech.name}</option>)}
+            </Select>
+          </div>
+          {!technicians.length ? <p className="text-xs text-[var(--muted)]">No active staff member with repair work access is available for assignment.</p> : null}
           {isReassign ? <Input name="reason" placeholder="Reassignment reason" required /> : null}
-          <Textarea name="notes" placeholder="Assignment notes" />
           <Button className="w-full" disabled={pending || !tickets.length || !technicians.length}>{title}</Button>
         </form>
       </CardContent>
@@ -241,4 +258,14 @@ function mergeTechnicians(primary, fallback) {
     if (tech?.id) map.set(tech.id, tech);
   }
   return [...map.values()];
+}
+
+async function refreshAssignmentWorkflowQueries(queryClient, ticketId) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["assignments", "queue"] }),
+    queryClient.invalidateQueries({ queryKey: ["assignments", "dashboard"] }),
+    queryClient.invalidateQueries({ queryKey: ["assignments", ticketId] }),
+    queryClient.invalidateQueries({ queryKey: ["repair"] }),
+    queryClient.invalidateQueries({ queryKey: ["technician-assigned-repairs"] }),
+  ]);
 }

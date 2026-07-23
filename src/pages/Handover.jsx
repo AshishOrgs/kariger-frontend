@@ -41,17 +41,17 @@ export function Handover() {
     successMessage: "Handover recorded successfully.",
     onSuccess: async (_data, variables) => {
       setLastHandoverTicketId(variables.ticketId);
-      await queryClient.invalidateQueries();
+      await refreshHandoverWorkflowQueries(queryClient, variables.ticketId);
     },
   });
   const closeMutation = useNotifyMutation({
     mutationFn: (ticketId) => repairApi.updateStatus(ticketId, { status: "CLOSED", reason: "Repair delivered and closed from handover workflow." }),
     successMessage: "Repair closed successfully.",
-    onSuccess: () => queryClient.invalidateQueries(),
+    onSuccess: (_data, ticketId) => refreshHandoverWorkflowQueries(queryClient, ticketId),
   });
 
   return (
-    <OperationsWorkflowPage current="handover" ticket={activeTicket} ticketId={activeTicketId}>
+    <OperationsWorkflowPage current="handover" ticket={activeTicket} ticketId={activeTicketId} showSummary={false}>
       <PageHeader title="Handover" description="Customer delivery confirmation, custody history, and future-ready customer signature and warranty notes." />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <Card><CardHeader><CardTitle>Current Custody</CardTitle></CardHeader><CardContent className="p-0"><Table><thead><tr><Th>Ticket</Th><Th>Status</Th><Th>Current Holder</Th><Th>Current Location</Th></tr></thead><tbody>{ticketsWithCustody.map((ticket) => <tr key={ticket.id}><Td><button className="text-left font-semibold text-[var(--primary)]" type="button" onClick={() => setSelectedTicketId(ticket.id)}>{ticketLabel(ticket)}</button></Td><Td><StatusBadge status={ticket.status} /></Td><Td><StatusBadge status={ticket.currentHolderType || "RECEPTION"} /></Td><Td>{ticket.currentLocation || "Not set"}</Td></tr>)}</tbody></Table>{!ticketsWithCustody.length ? <div className="p-5"><EmptyState title="No repair tickets" description="Create a repair ticket before recording custody handovers." /></div> : null}</CardContent></Card>
@@ -117,21 +117,27 @@ function HandoverForm({ activeTicketId, mutation, onTicketChange, tickets }) {
   const customerName = ticket?.customer?.fullName || "Loading...";
   const technicianName = ticket ? getActiveTechnicianName(ticket) : "Loading...";
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!activeTicketId) return;
 
-    mutation.mutate({
-      ticketId: activeTicketId,
-      payload: {
-        type: "RECEPTION_TO_CUSTOMER",
-        receiverName: ticket?.customer?.fullName || "Customer",
-        notes: notes || undefined,
-        metadata: {
-          deliveryDate,
+    try {
+      await mutation.mutateAsync({
+        ticketId: activeTicketId,
+        payload: {
+          type: "RECEPTION_TO_CUSTOMER",
+          receiverName: ticket?.customer?.fullName || "Customer",
+          notes: notes || undefined,
+          metadata: {
+            deliveryDate,
+          },
         },
-      },
-    });
+      });
+      setNotes("");
+      setDeliveryDate(new Date().toISOString().split("T")[0]);
+    } catch {
+      // Error toast is handled by the mutation.
+    }
   };
 
   return (
@@ -200,4 +206,13 @@ function HandoverForm({ activeTicketId, mutation, onTicketChange, tickets }) {
       </CardContent>
     </Card>
   );
+}
+
+async function refreshHandoverWorkflowQueries(queryClient, ticketId) {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["repair"] }),
+    queryClient.invalidateQueries({ queryKey: ["repair", ticketId] }),
+    queryClient.invalidateQueries({ queryKey: ["repair", ticketId, "current-custody"] }),
+    queryClient.invalidateQueries({ queryKey: ["repair-ticket-handover-detail", ticketId] }),
+  ]);
 }

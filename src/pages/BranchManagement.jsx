@@ -195,14 +195,23 @@ export function BranchManagement() {
               <form
                 key={editBranch?.id || "create"}
                 className="space-y-3"
-                onSubmit={(event) => {
+                onSubmit={async (event) => {
                   event.preventDefault();
                   const payload = buildBranchPayload(new FormData(event.currentTarget));
                   if (editBranch) {
-                    updateMutation.mutate({ id: editBranch.id, payload });
+                    try {
+                      await updateMutation.mutateAsync({ id: editBranch.id, payload });
+                      setEditBranchId("");
+                    } catch {
+                      // Error toast is handled by the mutation.
+                    }
                   } else {
-                    createMutation.mutate(payload);
-                    event.currentTarget.reset();
+                    try {
+                      await createMutation.mutateAsync(payload);
+                      event.currentTarget.reset();
+                    } catch {
+                      // Error toast is handled by the mutation.
+                    }
                   }
                 }}
               >
@@ -233,9 +242,15 @@ export function BranchManagement() {
             <CardContent>
               <form
                 className="space-y-3"
-                onSubmit={(event) => {
+                onSubmit={async (event) => {
                   event.preventDefault();
-                  assignMutation.mutate({ id: adminId, branchId: adminBranchId });
+                  try {
+                    await assignMutation.mutateAsync({ id: adminId, branchId: adminBranchId });
+                    setAdminId("");
+                    setAdminBranchId("");
+                  } catch {
+                    // Error toast is handled by the mutation.
+                  }
                 }}
               >
                 <Field label="Admin">

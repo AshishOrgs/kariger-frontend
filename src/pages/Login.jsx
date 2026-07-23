@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Field, Input } from "@/components/ui/Form";
+import { Field, Input, PasswordInput } from "@/components/ui/Form";
 import { useAuth } from "@/contexts/AuthContext";
 import { authApi } from "@/services/modules";
 import loginBg from "@/public/assets/login_bg.png";
@@ -115,8 +115,7 @@ export function Login() {
               }
               error={form.formState.errors.password?.message}
             >
-              <Input
-                type="password"
+              <PasswordInput
                 autoComplete="current-password"
                 placeholder="••••••••"
                 className="mt-1.5 bg-white/80 border-slate-200/80 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg text-xs h-11"

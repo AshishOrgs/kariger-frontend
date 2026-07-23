@@ -112,6 +112,11 @@ export async function patch(url, payload) {
   return response.data;
 }
 
+export async function put(url, payload) {
+  const response = await api.put(url, payload);
+  return response.data;
+}
+
 export async function del(url, params) {
   const response = await api.delete(url, { params });
   return response.data;

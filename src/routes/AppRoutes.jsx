@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { AppLayout } from "@/layouts/AppLayout";
 import { ProtectedRoute } from "@/routes/ProtectedRoute";
 import { useAuth } from "@/contexts/AuthContext";
+import { PERMISSIONS } from "@/utils/permissions";
 
 const Assignments = lazy(() => import("@/pages/Assignments").then((module) => ({ default: module.Assignments })));
 const AssignedRepairs = lazy(() => import("@/pages/AssignedRepairs").then((module) => ({ default: module.AssignedRepairs })));
@@ -73,22 +74,46 @@ function SuperAdminBusinessDetailsRoute() {
   return <SuperAdminBusinessDetails id={id} />;
 }
 
-function RequireRole({ roles, children }) {
-  const { hasRole } = useAuth();
+function RequirePermission({ anyOf = [], allOf = [], children }) {
+  const { hasPermission, hasAllPermissions } = useAuth();
+  const hasAnyRequiredPermission = anyOf.length === 0 || hasPermission(...anyOf);
+  const hasEveryRequiredPermission = allOf.length === 0 || hasAllPermissions(...allOf);
 
-  if (!hasRole(...roles)) {
+  if (!hasAnyRequiredPermission || !hasEveryRequiredPermission) {
     return <Navigate to="/unauthorized" replace />;
   }
 
   return children;
 }
 
-const ownerOnly = ["OWNER"];
-const operator = ["ADMIN"];
-const staffManagers = ["OWNER", "ADMIN"];
-const operatorAndTechnician = ["OWNER", "ADMIN", "TECHNICIAN"];
-const superAdminOnly = ["SUPER_ADMIN"];
-const technicianOnly = ["TECHNICIAN"];
+const dashboardPermissions = [
+  PERMISSIONS.SUPER_ADMIN_MANAGE,
+  PERMISSIONS.REPAIR_INTAKE,
+  PERMISSIONS.REPAIR_JOBS_VIEW,
+  PERMISSIONS.REPAIR_WORK,
+  PERMISSIONS.INVENTORY_VIEW,
+  PERMISSIONS.BILLING_VIEW,
+  PERMISSIONS.REPORTS_VIEW,
+  PERMISSIONS.BRANCH_VIEW,
+  PERMISSIONS.STAFF_VIEW,
+  PERMISSIONS.SUBSCRIPTION_MANAGE,
+];
+const branchPortalPermissions = [PERMISSIONS.REPAIR_INTAKE, PERMISSIONS.SUBSCRIPTION_MANAGE];
+const subscriptionPermissions = [PERMISSIONS.SUBSCRIPTION_MANAGE];
+const branchViewPermissions = [PERMISSIONS.BRANCH_VIEW, PERMISSIONS.BRANCH_MANAGE];
+const branchManagePermissions = [PERMISSIONS.BRANCH_MANAGE];
+const businessPermissions = [PERMISSIONS.BUSINESS_MANAGE];
+const staffPermissions = [PERMISSIONS.STAFF_VIEW, PERMISSIONS.STAFF_MANAGE];
+const repairViewPermissions = [PERMISSIONS.REPAIR_JOBS_VIEW];
+const repairIntakePermissions = [PERMISSIONS.REPAIR_INTAKE];
+const estimatePermissions = [PERMISSIONS.REPAIR_ESTIMATE, PERMISSIONS.ESTIMATE_CREATE];
+const assignmentPermissions = [PERMISSIONS.REPAIR_ASSIGN];
+const inventoryPermissions = [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE, PERMISSIONS.INVENTORY_CONSUME];
+const billingPermissions = [PERMISSIONS.BILLING_VIEW, PERMISSIONS.BILLING_CREATE, PERMISSIONS.PAYMENT_COLLECT];
+const handoverPermissions = [PERMISSIONS.HANDOVER_VIEW, PERMISSIONS.HANDOVER_MANAGE];
+const vendorPermissions = [PERMISSIONS.VENDOR_VIEW, PERMISSIONS.VENDOR_MANAGE, PERMISSIONS.VENDOR_JOB_UPDATE];
+const repairWorkPermissions = [PERMISSIONS.REPAIR_WORK];
+const superAdminPermissions = [PERMISSIONS.SUPER_ADMIN_MANAGE];
 
 export function AppRoutes() {
   return (
@@ -107,35 +132,35 @@ export function AppRoutes() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<ProtectedRoute />} >
           <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<RequireRole roles={operatorAndTechnician}><Dashboard /></RequireRole>} />
-            <Route path="/branch/portal" element={<RequireRole roles={staffManagers}><BranchPortal /></RequireRole>} />
-            <Route path="/plans" element={<RequireRole roles={ownerOnly}><PlanSelection /></RequireRole>} />
-            <Route path="/branches/:id" element={<RequireRole roles={ownerOnly}><BranchDetails /></RequireRole>} />
-            <Route path="/admin/workflow" element={<RequireRole roles={staffManagers}><AdminWorkflow /></RequireRole>} />
-            <Route path="/assignments" element={<RequireRole roles={operator}><Assignments /></RequireRole>} />
-            <Route path="/billing" element={<RequireRole roles={operator}><Billing /></RequireRole>} />
-            <Route path="/billing/invoices/:id" element={<RequireRole roles={operator}><InvoiceDetailsRoute /></RequireRole>} />
-            <Route path="/branches" element={<RequireRole roles={ownerOnly}><BranchManagement /></RequireRole>} />
-            <Route path="/business" element={<RequireRole roles={ownerOnly}><BusinessProfile /></RequireRole>} />
-            <Route path="/customers" element={<RequireRole roles={operator}><Customers /></RequireRole>} />
-            <Route path="/customers/:id" element={<RequireRole roles={operator}><CustomerDetailsRoute /></RequireRole>} />
-            <Route path="/handover" element={<RequireRole roles={operator}><Handover /></RequireRole>} />
-            <Route path="/inventory" element={<RequireRole roles={operator}><Inventory /></RequireRole>} />
-            <Route path="/inventory/:id" element={<RequireRole roles={operator}><InventoryDetailsRoute /></RequireRole>} />
-            <Route path="/repair" element={<RequireRole roles={operator}><Repair /></RequireRole>} />
-            <Route path="/repair/new" element={<RequireRole roles={operator}><CreateRepair /></RequireRole>} />
-            <Route path="/repair/estimates" element={<RequireRole roles={operator}><Estimates /></RequireRole>} />
-            <Route path="/repair/estimates/:id" element={<RequireRole roles={operator}><EstimateDetailsRoute /></RequireRole>} />
-            <Route path="/repair/:id" element={<RequireRole roles={operator}><RepairDetailsRoute /></RequireRole>} />
-            <Route path="/staff" element={<RequireRole roles={staffManagers}><StaffManagement /></RequireRole>} />
-            <Route path="/subscription" element={<RequireRole roles={ownerOnly}><Subscription /></RequireRole>} />
-            <Route path="/super-admin/dashboard" element={<RequireRole roles={superAdminOnly}><SuperAdminDashboard /></RequireRole>} />
-            <Route path="/super-admin/businesses" element={<RequireRole roles={superAdminOnly}><SuperAdminBusinesses /></RequireRole>} />
-            <Route path="/super-admin/businesses/:id" element={<RequireRole roles={superAdminOnly}><SuperAdminBusinessDetailsRoute /></RequireRole>} />
-            <Route path="/super-admin/contacts" element={<RequireRole roles={superAdminOnly}><SuperAdminContacts /></RequireRole>} />
-            <Route path="/technician/repairs" element={<RequireRole roles={technicianOnly}><AssignedRepairs /></RequireRole>} />
-            <Route path="/technician/inventory" element={<RequireRole roles={technicianOnly}><TechnicianInventory /></RequireRole>} />
-            <Route path="/vendors" element={<RequireRole roles={operator}><Vendors /></RequireRole>} />
+            <Route path="/dashboard" element={<RequirePermission anyOf={dashboardPermissions}><Dashboard /></RequirePermission>} />
+            <Route path="/branch/portal" element={<RequirePermission anyOf={branchPortalPermissions}><BranchPortal /></RequirePermission>} />
+            <Route path="/plans" element={<RequirePermission anyOf={subscriptionPermissions}><PlanSelection /></RequirePermission>} />
+            <Route path="/branches/:id" element={<RequirePermission anyOf={branchViewPermissions}><BranchDetails /></RequirePermission>} />
+            <Route path="/admin/workflow" element={<RequirePermission anyOf={branchPortalPermissions}><AdminWorkflow /></RequirePermission>} />
+            <Route path="/assignments" element={<RequirePermission anyOf={assignmentPermissions}><Assignments /></RequirePermission>} />
+            <Route path="/billing" element={<RequirePermission anyOf={billingPermissions}><Billing /></RequirePermission>} />
+            <Route path="/billing/invoices/:id" element={<RequirePermission anyOf={billingPermissions}><InvoiceDetailsRoute /></RequirePermission>} />
+            <Route path="/branches" element={<RequirePermission anyOf={branchManagePermissions}><BranchManagement /></RequirePermission>} />
+            <Route path="/business" element={<RequirePermission anyOf={businessPermissions}><BusinessProfile /></RequirePermission>} />
+            <Route path="/customers" element={<RequirePermission anyOf={repairViewPermissions}><Customers /></RequirePermission>} />
+            <Route path="/customers/:id" element={<RequirePermission anyOf={repairViewPermissions}><CustomerDetailsRoute /></RequirePermission>} />
+            <Route path="/handover" element={<RequirePermission anyOf={handoverPermissions}><Handover /></RequirePermission>} />
+            <Route path="/inventory" element={<RequirePermission anyOf={inventoryPermissions}><Inventory /></RequirePermission>} />
+            <Route path="/inventory/:id" element={<RequirePermission anyOf={inventoryPermissions}><InventoryDetailsRoute /></RequirePermission>} />
+            <Route path="/repair" element={<RequirePermission anyOf={repairViewPermissions}><Repair /></RequirePermission>} />
+            <Route path="/repair/new" element={<RequirePermission anyOf={repairIntakePermissions}><CreateRepair /></RequirePermission>} />
+            <Route path="/repair/estimates" element={<RequirePermission anyOf={estimatePermissions}><Estimates /></RequirePermission>} />
+            <Route path="/repair/estimates/:id" element={<RequirePermission anyOf={estimatePermissions}><EstimateDetailsRoute /></RequirePermission>} />
+            <Route path="/repair/:id" element={<RequirePermission anyOf={repairViewPermissions}><RepairDetailsRoute /></RequirePermission>} />
+            <Route path="/staff" element={<RequirePermission anyOf={staffPermissions}><StaffManagement /></RequirePermission>} />
+            <Route path="/subscription" element={<RequirePermission anyOf={subscriptionPermissions}><Subscription /></RequirePermission>} />
+            <Route path="/super-admin/dashboard" element={<RequirePermission anyOf={superAdminPermissions}><SuperAdminDashboard /></RequirePermission>} />
+            <Route path="/super-admin/businesses" element={<RequirePermission anyOf={superAdminPermissions}><SuperAdminBusinesses /></RequirePermission>} />
+            <Route path="/super-admin/businesses/:id" element={<RequirePermission anyOf={superAdminPermissions}><SuperAdminBusinessDetailsRoute /></RequirePermission>} />
+            <Route path="/super-admin/contacts" element={<RequirePermission anyOf={superAdminPermissions}><SuperAdminContacts /></RequirePermission>} />
+            <Route path="/technician/repairs" element={<RequirePermission anyOf={repairWorkPermissions}><AssignedRepairs /></RequirePermission>} />
+            <Route path="/technician/inventory" element={<RequirePermission anyOf={inventoryPermissions}><TechnicianInventory /></RequirePermission>} />
+            <Route path="/vendors" element={<RequirePermission anyOf={vendorPermissions}><Vendors /></RequirePermission>} />
             <Route path="/unauthorized" element={<UnauthorizedPage />} />
           </Route>
         </Route>

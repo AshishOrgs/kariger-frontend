@@ -1,20 +1,18 @@
 import { useMemo, useState } from "react";
-import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   BadgePlus,
-  Bell,
-  ChevronDown,
-  ChevronRight,
+  Building2,
   Clock3,
+  ClipboardList,
   FolderKanban,
-  Grid2X2,
-  LayoutDashboard,
   LockKeyhole,
   LogOut,
   Menu,
-  PanelTop,
   Settings2,
   Sparkles,
+  Home,
+  Users,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -25,50 +23,51 @@ import { navigation } from "@/layouts/navigation";
 import { subscriptionApi } from "@/services/modules";
 import { cn } from "@/utils/cn";
 import { openWhatsApp } from "@/utils/whatsapp";
+import { PERMISSIONS } from "@/utils/permissions";
 
 export function AppLayout() {
   const [open, setOpen] = useState(false);
-  const [operationsOpen, setOperationsOpen] = useState(true);
-  const [managementOpen, setManagementOpen] = useState(true);
-  const [mobileAdminPanel, setMobileAdminPanel] = useState(null);
+  const [mobileNavPanel, setMobileNavPanel] = useState(null);
   const location = useLocation();
-  const { user, logout, hasRole, updateSubscription } = useAuth();
+  const activeRoute = `${location.pathname}${location.search}`;
+  const { user, logout, hasPermission, accessScope, updateSubscription } = useAuth();
   const { allBranchesValue, branches, selectedBranchId, setSelectedBranchId } = useBranch();
-  const isSuperAdmin = hasRole("SUPER_ADMIN");
+  const isSuperAdmin = hasPermission(PERMISSIONS.SUPER_ADMIN_MANAGE);
+  const canCreateRepair = hasPermission(PERMISSIONS.REPAIR_INTAKE);
 
   const activeBranch = useMemo(() => {
-    if (hasRole("ADMIN") || hasRole("TECHNICIAN")) {
-      return user?.branch;
+    const authenticatedBranch =
+      user?.branch || branches.find((branch) => branch.id === user?.branchId);
+    const isAuthenticatedBranchScope = ["ownBranch", "currentBranch", "assignedBranch"].includes(
+      accessScope?.branchScope,
+    );
+
+    if (isAuthenticatedBranchScope && authenticatedBranch) {
+      return authenticatedBranch;
     }
+
     if (selectedBranchId && selectedBranchId !== allBranchesValue) {
       return branches.find((b) => b.id === selectedBranchId);
     }
     return branches.find((b) => b.isMainBranch) || branches[0];
-  }, [user, branches, selectedBranchId, allBranchesValue, hasRole]);
+  }, [accessScope?.branchScope, user?.branch, user?.branchId, branches, selectedBranchId, allBranchesValue]);
 
   const brandLogo = isSuperAdmin ? "" : activeBranch?.metadata?.logo || "";
   const brandTitle = isSuperAdmin
     ? "Repair ERP Platform"
     : activeBranch?.metadata?.title || activeBranch?.name || "Repair ERP";
-  const activeBranchName = activeBranch?.name || brandTitle;
   const brandSlogan = isSuperAdmin
     ? "SaaS control center"
-    : activeBranch?.metadata?.slogan || activeBranch?.code || "Backend modules as navigation";
+    : activeBranch?.metadata?.slogan || activeBranch?.code || "Workflow navigation";
 
   const visibleNavigation = useMemo(() => {
     return navigation
-      .filter((item) => hasRole(...item.roles))
-      .map((item) => {
-        if (item.path === "/staff") {
-          return {
-            ...item,
-            label: user?.role === "OWNER" ? "Admins" : "Technicians",
-          };
-        }
-        return item;
-      });
-  }, [hasRole, user?.role]);
-  const showBranchSelector = hasRole("OWNER") && branches.length > 0;
+      .filter((item) => hasPermission(...item.permissions));
+  }, [hasPermission]);
+  const showBranchSelector =
+    ["allBranches", "selectedBranches", "platform"].includes(accessScope?.branchScope) &&
+    branches.length > 0 &&
+    hasPermission(PERMISSIONS.BRANCH_VIEW, PERMISSIONS.BRANCH_MANAGE);
   const subscription = user?.business?.subscription;
   const isSubscriptionPath = location.pathname === "/subscription" || location.pathname.startsWith("/subscription/");
   const approvalPending = isApprovalPending(subscription);
@@ -76,16 +75,15 @@ export function AppLayout() {
     !isSuperAdmin &&
     subscription?.isWorkspaceLocked &&
     !isSubscriptionPath &&
-    (!approvalPending || user?.role === "OWNER");
+    (!approvalPending || hasPermission(PERMISSIONS.SUBSCRIPTION_MANAGE));
   const trialWarning = !isSuperAdmin && !isWorkspaceLocked && subscription?.trialWarningLevel;
   const closeMobileSidebar = () => setOpen(false);
-  const isAdminMobileShell = user?.role === "ADMIN";
-  const closeMobileAdminPanel = () => setMobileAdminPanel(null);
+  const closeMobileNavPanel = () => setMobileNavPanel(null);
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
       {/* Backdrop overlay for mobile screen */}
-      {open && !isAdminMobileShell ? (
+      {open ? (
         <div
           className="fixed inset-0 z-20 bg-slate-900/40 backdrop-blur-[2px] transition-opacity lg:hidden"
           onClick={() => setOpen(false)}
@@ -97,7 +95,6 @@ export function AppLayout() {
         className={cn(
           "fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh w-72 flex-col overflow-hidden border-r border-[var(--border)] bg-white transition-transform lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
-          isAdminMobileShell && "hidden lg:flex"
         )}
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
@@ -140,34 +137,9 @@ export function AppLayout() {
           </div>
         ) : null}
         <nav className="min-h-0 flex-1 overflow-y-auto p-3 pb-4">
-          {user?.role === "ADMIN" ? (
-            <AdminSidebarNavigation
-              items={visibleNavigation}
-              pathname={location.pathname}
-              operationsOpen={operationsOpen}
-              setOperationsOpen={setOperationsOpen}
-              managementOpen={managementOpen}
-              setManagementOpen={setManagementOpen}
-              onNavigate={closeMobileSidebar}
-            />
-          ) : (
-            visibleNavigation.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.label}
-                  to={item.path}
-                  onClick={closeMobileSidebar}
-                  className={({ isActive }) =>
-                    cn("mb-1 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100", isActive && "bg-blue-50 text-[var(--primary)]")
-                  }
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </NavLink>
-              );
-            })
-          )}
+          {visibleNavigation.map((item) => (
+            <SidebarLink key={item.id || item.path} item={item} activeRoute={activeRoute} onNavigate={closeMobileSidebar} />
+          ))}
           <Button variant="secondary" className="mt-3 w-full justify-start lg:hidden" onClick={logout}>
             <LogOut className="h-4 w-4" />
             Logout
@@ -182,36 +154,11 @@ export function AppLayout() {
       </aside>
       <div className="min-w-0 lg:pl-72">
         <header className="sticky top-0 z-20 flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-white px-3 lg:px-6">
-          {isAdminMobileShell ? (
-            <Link to="/branch/portal" className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
-              {brandLogo ? (
-                <img
-                  src={brandLogo}
-                  alt="Logo"
-                  className="h-10 w-10 shrink-0 rounded-2xl border border-slate-100 bg-slate-50 object-contain p-1 shadow-sm"
-                  onError={(event) => {
-                    event.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-xs font-black text-white shadow-sm shadow-teal-900/15">
-                  {brandTitle.substring(0, 2).toUpperCase()}
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black leading-tight text-slate-950" title={user?.fullName || brandTitle}>
-                  {user?.fullName || "Admin"}
-                </p>
-                <p className="truncate text-[11px] font-semibold text-[var(--muted)]">{user?.role || "ADMIN"}</p>
-              </div>
-            </Link>
-          ) : null}
-
-          <div className={cn("items-center gap-3", isAdminMobileShell ? "hidden lg:flex" : "flex")}>
+          <div className="flex items-center gap-3">
             <Button
               variant="ghost"
               size="sm"
-              className={cn("lg:hidden", isAdminMobileShell && "hidden")}
+              className="lg:hidden"
               onClick={() => setOpen((value) => !value)}
               onDoubleClick={closeMobileSidebar}
             >
@@ -219,29 +166,11 @@ export function AppLayout() {
             </Button>
             <div>
               <p className="text-sm font-semibold">
-                {isSuperAdmin ? "Repair ERP Platform" : user?.business?.name || "Repair Business"}
+                {isSuperAdmin ? "Repair ERP Platform" : activeBranch?.name || user?.business?.name || "Repair Business"}
               </p>
               <p className="text-xs text-[var(--muted)]">{user?.fullName} · {user?.role}</p>
             </div>
           </div>
-          {isAdminMobileShell ? (
-            <div className="flex min-w-0 shrink-0 items-center justify-end gap-2 lg:hidden">
-              <button
-                type="button"
-                className="relative grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-700 shadow-sm"
-                aria-label="Notifications"
-              >
-                <Bell className="h-4 w-4" />
-                <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-teal-500 ring-2 ring-white" />
-              </button>
-              <div className="min-w-0 max-w-[138px] rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-                <p className="truncate text-[9px] font-black uppercase tracking-wide text-slate-400">Active Branch</p>
-                <p className="truncate text-[11px] font-black leading-tight text-[var(--primary)]" title={activeBranchName}>
-                  {activeBranchName}
-                </p>
-              </div>
-            </div>
-          ) : null}
           {showBranchSelector ? (
             <Select
               className="hidden w-56 sm:block"
@@ -260,182 +189,105 @@ export function AppLayout() {
             </Select>
           ) : null}
         </header>
-        <main className={cn("relative min-w-0 overflow-x-hidden p-4 pb-28 lg:p-6", isAdminMobileShell && "pb-32 lg:pb-6")}>
+        <main className="relative min-w-0 overflow-x-hidden p-4 pb-32 lg:p-6">
           {trialWarning ? <TrialWarningBanner subscription={subscription} /> : null}
           <div className={cn(isWorkspaceLocked && "pointer-events-none select-none blur-sm")}>
             <Outlet />
           </div>
         </main>
       </div>
-      {isAdminMobileShell ? (
-        <AdminMobileNavigation
-          pathname={location.pathname}
-          activePanel={mobileAdminPanel}
-          setActivePanel={setMobileAdminPanel}
-          onClosePanel={closeMobileAdminPanel}
-        />
-      ) : null}
-      {isWorkspaceLocked ? <LockedWorkspaceOverlay subscription={subscription} user={user} updateSubscription={updateSubscription} /> : null}
+      <MobileNavigation
+        items={visibleNavigation}
+        activeRoute={activeRoute}
+        activePanel={mobileNavPanel}
+        setActivePanel={setMobileNavPanel}
+        onClosePanel={closeMobileNavPanel}
+        canCreateRepair={canCreateRepair}
+      />
+      {isWorkspaceLocked ? <LockedWorkspaceOverlay subscription={subscription} user={user} updateSubscription={updateSubscription} onLogout={logout} /> : null}
     </div>
   );
 }
 
-const adminOperations = [
-  { label: "Customer", path: "/customers", sourcePath: "/customers" },
-  { label: "Estimate", path: "/repair/estimates", sourcePath: "/repair/estimates" },
-  { label: "Assignment", path: "/assignments", sourcePath: "/assignments" },
-  { label: "Repair", path: "/repair", sourcePath: "/repair" },
-  { label: "Billing", path: "/billing", sourcePath: "/billing" },
-  { label: "Handover", path: "/handover", sourcePath: "/handover" },
-];
-
-const adminManagement = [
-  { label: "Technician", path: "/staff", sourcePath: "/staff" },
-  { label: "Inventory", path: "/inventory", sourcePath: "/inventory" },
-];
-
 const mobileSectionIconTone = {
-  Customer: "bg-sky-50 text-sky-700",
-  Estimate: "bg-indigo-50 text-indigo-700",
-  Assignment: "bg-violet-50 text-violet-700",
-  Repair: "bg-emerald-50 text-emerald-700",
+  Dashboard: "bg-sky-50 text-sky-700",
+  "Repair Intake": "bg-teal-50 text-teal-700",
+  "Repair Jobs": "bg-blue-50 text-blue-700",
+  "Repair Work": "bg-emerald-50 text-emerald-700",
   Billing: "bg-amber-50 text-amber-700",
   Handover: "bg-teal-50 text-teal-700",
-  Technician: "bg-blue-50 text-blue-700",
   Inventory: "bg-cyan-50 text-cyan-700",
+  Reports: "bg-indigo-50 text-indigo-700",
+  Staff: "bg-violet-50 text-violet-700",
+  Branches: "bg-sky-50 text-sky-700",
+  Business: "bg-slate-100 text-slate-700",
+  Subscription: "bg-amber-50 text-amber-700",
+  Settings: "bg-slate-100 text-slate-700",
 };
 
-function AdminSidebarNavigation({
-  items,
-  pathname,
-  operationsOpen,
-  setOperationsOpen,
-  managementOpen,
-  setManagementOpen,
-  onNavigate,
-}) {
-  const byPath = useMemo(() => new Map(items.map((item) => [item.path, item])), [items]);
-  const branchPortal = byPath.get("/branch/portal");
-  const dashboard = byPath.get("/dashboard");
-
-  return (
-    <>
-      {branchPortal ? <SidebarLink item={branchPortal} onNavigate={onNavigate} /> : null}
-      {dashboard ? <SidebarLink item={dashboard} onNavigate={onNavigate} /> : null}
-
-      <button
-        type="button"
-        onClick={() => setOperationsOpen((value) => !value)}
-        className="mb-1 flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-black text-slate-700 hover:bg-slate-100"
-      >
-        <FolderKanban className="h-4 w-4" />
-        <span className="flex-1">Operations</span>
-        {operationsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-      </button>
-
-      {operationsOpen ? (
-        <div className="mb-2 space-y-1 pl-3">
-          {adminOperations.map((operation) => {
-            const source = byPath.get(operation.sourcePath);
-            const Icon = source?.icon || FolderKanban;
-            const active = isAdminOperationActive(pathname, operation.path);
-            return (
-              <NavLink
-                key={operation.label}
-                to={operation.path}
-                onClick={onNavigate}
-                className={() =>
-                  cn(
-                    "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100",
-                    active && "bg-blue-50 text-[var(--primary)]"
-                  )
-                }
-              >
-                <Icon className="h-4 w-4" />
-                {operation.label}
-              </NavLink>
-            );
-          })}
-        </div>
-      ) : null}
-
-      <button
-        type="button"
-        onClick={() => setManagementOpen((value) => !value)}
-        className="mb-1 flex h-10 w-full items-center gap-3 rounded-md px-3 text-left text-sm font-black text-slate-700 hover:bg-slate-100"
-      >
-        <FolderKanban className="h-4 w-4" />
-        <span className="flex-1">Management</span>
-        {managementOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-      </button>
-      {managementOpen ? (
-        <div className="mb-2 space-y-1 pl-3">
-          {adminManagement.map((entry) => {
-            const source = byPath.get(entry.sourcePath);
-            if (!source) return null;
-            const Icon = source.icon || FolderKanban;
-            const active = pathname === entry.path || pathname.startsWith(`${entry.path}/`);
-            return (
-              <NavLink
-                key={entry.label}
-                to={entry.path}
-                onClick={onNavigate}
-                className={() =>
-                  cn(
-                    "flex h-9 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100",
-                    active && "bg-blue-50 text-[var(--primary)]"
-                  )
-                }
-              >
-                <Icon className="h-4 w-4" />
-                {entry.label}
-              </NavLink>
-            );
-          })}
-        </div>
-      ) : null}
-    </>
-  );
-}
-
-function SidebarLink({ item, onNavigate }) {
+function SidebarLink({ item, activeRoute, onNavigate }) {
   const Icon = item.icon;
+  const active = isNavigationActive(activeRoute, item.path);
   return (
-    <NavLink
+    <Link
       to={item.path}
       onClick={onNavigate}
-      className={({ isActive }) =>
-        cn("mb-1 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100", isActive && "bg-blue-50 text-[var(--primary)]")
-      }
+      className={cn("mb-1 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-slate-600 hover:bg-slate-100", active && "bg-blue-50 text-[var(--primary)]")}
     >
       <Icon className="h-4 w-4" />
       {item.label}
-    </NavLink>
+    </Link>
   );
 }
 
-function AdminMobileNavigation({ pathname, activePanel, setActivePanel, onClosePanel }) {
-  const createRepairVisible = pathname !== "/repair/new";
+const bottomNavConfig = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "repairs", label: "Repairs", icon: ClipboardList },
+  { id: "team", label: "Team", icon: Users },
+  { id: "business", label: "Business", icon: Building2 },
+  { id: "more", label: "More", icon: Settings2 },
+];
+
+function MobileNavigation({ items, activeRoute, activePanel, setActivePanel, onClosePanel, canCreateRepair }) {
+  const itemsByCategory = useMemo(() => {
+    return items.reduce((acc, item) => {
+      const category = item.category || "more";
+      acc[category] = [...(acc[category] || []), item];
+      return acc;
+    }, {});
+  }, [items]);
+
+  const bottomItems = bottomNavConfig
+    .map((entry) => {
+      const categoryItems = itemsByCategory[entry.id] || [];
+      const firstItem = categoryItems[0];
+      if (!firstItem) return null;
+      return { ...entry, items: categoryItems, path: firstItem.path };
+    })
+    .filter(Boolean);
+
+  const panel = bottomItems.find((entry) => entry.id === activePanel);
+  const createRepairVisible = canCreateRepair && routePathname(activeRoute) !== "/repair/new";
 
   return (
     <div className="lg:hidden">
-      {activePanel ? (
+      {panel ? (
         <div className="fixed inset-x-0 bottom-[5.35rem] z-40 px-3">
           <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-2xl shadow-slate-900/20">
             <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-[var(--primary)]">
-                  {activePanel === "operations" ? <PanelTop className="h-5 w-5" /> : <Settings2 className="h-5 w-5" />}
+                  <panel.icon className="h-5 w-5" />
                 </span>
-                <p className="text-sm font-black text-slate-900">{activePanel === "operations" ? "Operations" : "Management"}</p>
+                <p className="text-sm font-black text-slate-900">{panel.label}</p>
               </div>
               <Button type="button" variant="ghost" size="sm" onClick={onClosePanel}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="grid grid-cols-2 gap-2 p-3">
-              {(activePanel === "operations" ? adminOperations : adminManagement).map((entry) => (
-                <MobileSectionLink key={entry.label} entry={entry} pathname={pathname} onNavigate={onClosePanel} />
+              {panel.items.map((entry) => (
+                <MobileSectionLink key={entry.id || entry.path} entry={entry} activeRoute={activeRoute} onNavigate={onClosePanel} />
               ))}
             </div>
           </div>
@@ -454,67 +306,42 @@ function AdminMobileNavigation({ pathname, activePanel, setActivePanel, onCloseP
       ) : null}
 
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-10px_28px_rgba(15,23,42,0.1)] backdrop-blur">
-        <div className="grid grid-cols-3 gap-1.5">
-          <Link
-            to="/dashboard"
-            onClick={onClosePanel}
-            className={cn(
-              "flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-black text-slate-500 transition",
-              (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) && "bg-blue-50 text-[var(--primary)]"
-            )}
-          >
-            <span className={cn(
-              "grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-500",
-              (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) && "bg-blue-100 text-[var(--primary)]"
-            )}>
-              <LayoutDashboard className="h-5 w-5" />
-            </span>
-            Dashboard
-          </Link>
-          <button
-            type="button"
-            onClick={() => setActivePanel(activePanel === "operations" ? null : "operations")}
-            className={cn(
-              "flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-black text-slate-500 transition",
-              (activePanel === "operations" || adminOperations.some((entry) => isAdminOperationActive(pathname, entry.path))) && "bg-blue-50 text-[var(--primary)]"
-            )}
-          >
-            <span className={cn(
-              "grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-500",
-              (activePanel === "operations" || adminOperations.some((entry) => isAdminOperationActive(pathname, entry.path))) && "bg-teal-100 text-teal-700"
-            )}>
-              <Grid2X2 className="h-5 w-5" />
-            </span>
-            Operations
-          </button>
-          <button
-            type="button"
-            onClick={() => setActivePanel(activePanel === "management" ? null : "management")}
-            className={cn(
-              "flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-black text-slate-500 transition",
-              (activePanel === "management" || adminManagement.some((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`))) && "bg-blue-50 text-[var(--primary)]"
-            )}
-          >
-            <span className={cn(
-              "grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-500",
-              (activePanel === "management" || adminManagement.some((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`))) && "bg-indigo-100 text-indigo-700"
-            )}>
-              <Settings2 className="h-5 w-5" />
-            </span>
-            Management
-          </button>
+        <div
+          className="grid gap-1.5"
+          style={{ gridTemplateColumns: `repeat(${Math.max(bottomItems.length, 1)}, minmax(0, 1fr))` }}
+        >
+          {bottomItems.map((entry) => {
+            const Icon = entry.icon;
+            const active = activePanel === entry.id || entry.items.some((item) => isNavigationActive(activeRoute, item.path));
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setActivePanel(activePanel === entry.id ? null : entry.id)}
+                className={cn(
+                  "flex min-w-0 flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-black text-slate-500 transition",
+                  active && "bg-blue-50 text-[var(--primary)]"
+                )}
+              >
+                <span className={cn(
+                  "grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-500",
+                  active && "bg-blue-100 text-[var(--primary)]"
+                )}>
+                  <Icon className="h-5 w-5" />
+                </span>
+                <span className="max-w-full truncate">{entry.label}</span>
+              </button>
+            );
+          })}
         </div>
       </nav>
     </div>
   );
 }
 
-function MobileSectionLink({ entry, pathname, onNavigate }) {
-  const active = entry.path === "/repair"
-    ? isAdminOperationActive(pathname, entry.path)
-    : pathname === entry.path || pathname.startsWith(`${entry.path}/`);
-  const source = navigation.find((item) => item.path === entry.sourcePath);
-  const Icon = source?.icon || FolderKanban;
+function MobileSectionLink({ entry, activeRoute, onNavigate }) {
+  const active = isNavigationActive(activeRoute, entry.path);
+  const Icon = entry.icon || FolderKanban;
 
   return (
     <Link
@@ -533,26 +360,52 @@ function MobileSectionLink({ entry, pathname, onNavigate }) {
   );
 }
 
-function isAdminOperationActive(pathname, path) {
-  if (path === "/customers") return pathname.startsWith("/customers") || pathname === "/repair/new";
+function isNavigationActive(activeRoute, path) {
+  const pathname = routePathname(activeRoute);
+  const targetPathname = routePathname(path);
+  const targetSearch = routeSearch(path);
+  const activeSearch = routeSearch(activeRoute);
+
+  if (targetSearch) {
+    return pathname === targetPathname && activeSearch === targetSearch;
+  }
+
+  if (activeSearch && pathname === targetPathname) {
+    return false;
+  }
+
   if (path === "/repair") {
     return pathname === "/repair" || (pathname.startsWith("/repair/") && !pathname.startsWith("/repair/estimates") && pathname !== "/repair/new");
   }
-  return pathname === path || pathname.startsWith(`${path}/`);
+  return pathname === targetPathname || pathname.startsWith(`${targetPathname}/`);
+}
+
+function routePathname(value = "") {
+  return String(value).split("?")[0];
+}
+
+function routeSearch(value = "") {
+  const index = String(value).indexOf("?");
+  return index >= 0 ? String(value).slice(index) : "";
 }
 
 function TrialWarningBanner({ subscription }) {
   const days = subscription?.daysRemaining;
-  const label = days <= 1 ? "Your trial ends in 1 day." : `Your trial ends in ${days} days.`;
+  const isLimitWarning = subscription?.trialWarningLevel === "LIMIT_REACHED";
+  const label = isLimitWarning
+    ? `${lockReasonText(subscription?.trialExpiryReason)} You can keep using the dashboard. Upgrade your subscription when you need to add more.`
+    : days <= 1
+    ? "Your trial ends in 1 day."
+    : `Your trial ends in ${days} days.`;
 
   return (
     <div className="mb-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 shadow-sm sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
         <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
         <div>
-          <p className="text-sm font-black">Trial Ending Soon</p>
+          <p className="text-sm font-black">{isLimitWarning ? "Plan Limit Reached" : "Subscription Reminder"}</p>
           <p className="text-sm text-amber-800">
-            {label} Start your subscription to keep KARIGER running without interruption.
+            {label}
           </p>
         </div>
       </div>
@@ -565,13 +418,13 @@ function TrialWarningBanner({ subscription }) {
 
 function lockReasonText(reason) {
   const reasons = {
-    BRANCH_LIMIT_REACHED: "Your Starter trial branch limit has been reached.",
-    DEVICE_LIMIT_REACHED: "Your Starter trial repair device limit has been reached.",
-    STAFF_LIMIT_REACHED: "Your Starter trial staff limit has been reached.",
-    TRIAL_PERIOD_ENDED: "Your 14-day trial has ended.",
+    BRANCH_LIMIT_REACHED: "Your current plan includes 2 branches.",
+    DEVICE_LIMIT_REACHED: "Your current plan device limit has been reached.",
+    STAFF_LIMIT_REACHED: "Your current plan staff limit has been reached.",
+    TRIAL_PERIOD_ENDED: "Your free access period has ended.",
   };
 
-  return reasons[reason] || "Your trial has ended.";
+  return reasons[reason] || "Your subscription needs attention.";
 }
 
 function isApprovalPending(subscription) {
@@ -579,9 +432,9 @@ function isApprovalPending(subscription) {
 }
 
 function planLabel(subscription) {
-  if (!subscription?.plan) return "Trial";
+  if (!subscription?.plan) return "Not selected";
   const planName = subscription.plan.charAt(0) + subscription.plan.slice(1).toLowerCase();
-  return subscription.status === "TRIALING" || ["EXPIRED", "APPROVAL_PENDING"].includes(subscription.effectiveStatus) ? `${planName} Trial` : planName;
+  return planName;
 }
 
 function planDisplayName(plan) {
@@ -690,10 +543,10 @@ function rememberActivationRequestSent(subscription) {
   }
 }
 
-function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
+function LockedWorkspaceOverlay({ subscription, user, updateSubscription, onLogout }) {
   const [contacting, setContacting] = useState(false);
   const [activationRequestSent, setActivationRequestSent] = useState(() => readActivationRequestSent(subscription));
-  const isOwner = user?.role === "OWNER";
+  const canManageSubscription = Array.isArray(user?.permissions) && user.permissions.includes(PERMISSIONS.SUBSCRIPTION_MANAGE);
   const approvalPending = isApprovalPending(subscription);
   const supportWhatsApp = user?.business?.supportWhatsapp || import.meta.env.VITE_PAY_WHATSAPP;
   const requestSent = approvalPending && (activationRequestSent || paymentRequestStatus(subscription) === "REQUESTED");
@@ -702,7 +555,7 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
   const message = requestSent
     ? "Thank you. Your activation request has been sent to KARIGER.\n\nOur team will review it shortly, and your workspace will unlock automatically as soon as approval is complete."
     : approvalPending
-    ? "The Starter Trial limit has been reached.\n\nYour selected plan needs KARIGER approval before the workspace can continue."
+    ? "Your current plan limit has been reached.\n\nUpgrade your subscription to add more."
     : `${lockReasonText(subscription?.trialExpiryReason)} Renew your subscription to continue using KARIGER.`;
   const handleContactOwner = async () => {
     setContacting(true);
@@ -760,7 +613,7 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
           <p className="mb-1 text-xs font-black uppercase tracking-wider text-slate-500">Subscription Details</p>
           <DetailRow label="Current Plan" value={planLabel(subscription)} />
           <DetailRow label="Status" value={status} danger={!approvalPending} />
-          <DetailRow label="Trial Started" value={formatDate(subscription?.trialStartedAt)} />
+          <DetailRow label="Started On" value={formatDate(subscription?.trialStartedAt)} />
           <DetailRow label={approvalPending ? "Locked On" : "Expired On"} value={formatDate(subscription?.expiredOn, approvalPending ? "Approval required" : "Usage limit reached")} />
         </div>
 
@@ -772,9 +625,12 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
         </div>
 
         {approvalPending ? (
-          <div className="mt-6">
+          <div className="mt-6 space-y-2">
             <Button className="w-full" type="button" onClick={handleContactOwner} disabled={contacting || requestSent}>
               {requestSent ? "Activation Request Sent" : contacting ? "Preparing Request..." : "Contact KARIGER Owner"}
+            </Button>
+            <Button className="w-full" type="button" variant="secondary" onClick={onLogout}>
+              Decide Later / Logout
             </Button>
             {requestSent ? (
               <p className="mt-3 rounded-md bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
@@ -782,7 +638,7 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
               </p>
             ) : null}
           </div>
-        ) : isOwner ? (
+        ) : canManageSubscription ? (
           <div className="mt-6 grid gap-2 sm:grid-cols-2">
             <Link to="/subscription">
               <Button className="w-full" type="button">Renew Subscription</Button>
@@ -790,11 +646,19 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription }) {
             <Link to="/subscription">
               <Button className="w-full" type="button" variant="secondary">Contact on WhatsApp</Button>
             </Link>
+            <Button className="w-full sm:col-span-2" type="button" variant="secondary" onClick={onLogout}>
+              Decide Later / Logout
+            </Button>
           </div>
         ) : (
-          <p className="mt-6 rounded-md bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
-            Please contact the business owner to activate the subscription.
-          </p>
+          <div className="mt-6 space-y-2">
+            <p className="rounded-md bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+              Please contact the business owner to activate the subscription.
+            </p>
+            <Button className="w-full" type="button" variant="secondary" onClick={onLogout}>
+              Logout
+            </Button>
+          </div>
         )}
       </div>
     </div>

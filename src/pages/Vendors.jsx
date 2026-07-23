@@ -38,9 +38,17 @@ export function Vendors() {
   );
 
   const mutation = useNotifyMutation({ mutationFn: vendorsApi.create, successMessage: "Vendor created.", onSuccess: () => queryClient.invalidateQueries({ queryKey: ["vendors"] }) });
-  const dispatch = useNotifyMutation({ mutationFn: ({ ticketId, payload }) => repairApi.vendorDispatch(ticketId, payload), successMessage: "Repair dispatched to vendor.", onSuccess: () => queryClient.invalidateQueries() });
+  const dispatch = useNotifyMutation({
+    mutationFn: ({ ticketId, payload }) => repairApi.vendorDispatch(ticketId, payload),
+    successMessage: "Repair dispatched to vendor.",
+    onSuccess: (_data, variables) => refreshVendorWorkflowQueries(queryClient, variables.ticketId),
+  });
   const update = useNotifyMutation({ mutationFn: ({ jobId, payload }) => vendorsApi.updateJob(jobId, payload), successMessage: "Vendor job status updated.", onSuccess: () => queryClient.invalidateQueries({ queryKey: ["vendors", "jobs"] }) });
-  const receive = useNotifyMutation({ mutationFn: ({ jobId, payload }) => vendorsApi.receiveJob(jobId, payload), successMessage: "Vendor repair received.", onSuccess: () => queryClient.invalidateQueries() });
+  const receive = useNotifyMutation({
+    mutationFn: ({ jobId, payload }) => vendorsApi.receiveJob(jobId, payload),
+    successMessage: "Vendor repair received.",
+    onSuccess: () => refreshVendorWorkflowQueries(queryClient),
+  });
   const costs = useNotifyMutation({ mutationFn: ({ jobId, payload }) => vendorsApi.costs(jobId, payload), successMessage: "Vendor cost recorded.", onSuccess: () => queryClient.invalidateQueries({ queryKey: ["vendors", "jobs"] }) });
 
   return (
@@ -217,4 +225,17 @@ function mergeTicketCustody(ticket, custodyData) {
     currentLocation: custody?.currentLocation || custodyTicket?.currentLocation || ticket.currentLocation,
     lastHandoverAt: custody?.lastHandoverAt || custodyTicket?.lastHandoverAt || ticket.lastHandoverAt,
   };
+}
+
+async function refreshVendorWorkflowQueries(queryClient, ticketId) {
+  const invalidations = [
+    queryClient.invalidateQueries({ queryKey: ["vendors", "jobs"] }),
+    queryClient.invalidateQueries({ queryKey: ["repair"] }),
+  ];
+
+  if (ticketId) {
+    invalidations.push(queryClient.invalidateQueries({ queryKey: ["repair", ticketId, "current-custody"] }));
+  }
+
+  await Promise.all(invalidations);
 }

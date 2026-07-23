@@ -50,7 +50,7 @@ export function ContactPage() {
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.message) return;
+    if (!formData.name || !/^\d{10,12}$/.test(formData.phone) || !formData.message) return;
 
     setIsSubmitting(true);
     try {

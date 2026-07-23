@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Input, Select, Textarea } from "@/components/ui/Form";
+import { Input, Textarea } from "@/components/ui/Form";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -14,6 +14,27 @@ import { cn, formatCurrency, unwrapArray } from "@/utils/cn";
 import { firstObject } from "@/utils/data";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
 import { ticketLabel } from "@/utils/ticketLabel";
+
+function estimateNoteFromTicket(ticket) {
+  if (!ticket) return "";
+  const issueText = Array.isArray(ticket.issues)
+    ? ticket.issues
+        .map((issue) => issue.description || issue.title || issue.issue || "")
+        .filter(Boolean)
+        .join("\n")
+    : "";
+
+  return [
+    ticket.diagnosis,
+    ticket.initialNotes,
+    ticket.customerComplaint,
+    ticket.complaint,
+    issueText,
+    ticket.title,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
 
 export function Estimates() {
   const queryClient = useQueryClient();
@@ -36,6 +57,11 @@ export function Estimates() {
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0));
   const createCandidates = tickets.filter((ticket) => ["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"].includes(ticket.status));
   const activeTicketId = createCandidates.some((ticket) => ticket.id === selectedTicketId) ? selectedTicketId : createCandidates[0]?.id || "";
+  const activeTicketQuery = useQuery({
+    queryKey: ["repair", "estimate-selected", activeTicketId],
+    queryFn: () => repairApi.get(activeTicketId),
+    enabled: Boolean(activeTicketId),
+  });
   const mutation = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.createEstimate(ticketId, payload),
     successMessage: "Estimate created and marked done.",
@@ -44,11 +70,16 @@ export function Estimates() {
   const createdEstimate = mutation.data?.data?.estimate;
   const visibleCreatedEstimate = createdEstimate;
   const visibleCreatedEstimateStatus = visibleCreatedEstimate?.status || createdEstimate?.status;
-  const workflowTicket = allTickets.find((ticket) => ticket.id === (preselectedTicketId || activeTicketId)) || allTickets[0] || null;
+  const selectedTicketDetails = activeTicketQuery.data?.data?.ticket || activeTicketQuery.data?.data || null;
+  const selectedTicket =
+    selectedTicketDetails ||
+    allTickets.find((ticket) => ticket.id === (activeTicketId || preselectedTicketId)) ||
+    null;
+  const workflowTicket = selectedTicket || allTickets[0] || null;
   const createdEstimateTicketId = visibleCreatedEstimate?.repairTicketId || visibleCreatedEstimate?.ticketId || "";
 
   return (
-    <OperationsWorkflowPage current="estimate" ticket={workflowTicket} ticketId={createdEstimateTicketId || preselectedTicketId || activeTicketId} showContinue={false}>
+    <OperationsWorkflowPage current="estimate" ticket={workflowTicket} ticketId={createdEstimateTicketId || preselectedTicketId || activeTicketId} showContinue={false} showSummary={false}>
       <PageHeader title="Repair Estimates" description="Initial diagnosis, estimated repair cost, customer discussion, and estimated delivery time." />
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <div className="space-y-5">
@@ -57,22 +88,31 @@ export function Estimates() {
             <CardContent className="space-y-3">
               {tickets.map((ticket) => {
                 const latestEstimate = ticket.latestEstimate || ticket.estimates?.[0] || null;
+                const selected = ticket.id === activeTicketId;
 
                 return (
-                <div key={ticket.id} className="rounded-md border border-[var(--border)] p-3">
+                <button
+                  key={ticket.id}
+                  type="button"
+                  onClick={() => setSelectedTicketId(ticket.id)}
+                  className={cn(
+                    "w-full rounded-md border p-3 text-left transition hover:border-blue-200 hover:bg-blue-50/40",
+                    selected ? "border-blue-300 bg-blue-50 shadow-sm" : "border-[var(--border)] bg-white"
+                  )}
+                >
                   <div className="flex justify-between gap-3">
                     <div className="min-w-0">
                       <p className="break-words font-semibold">{ticketLabel(ticket)}</p>
                       <p className="text-sm text-[var(--muted)]">{ticket.title}</p>
                       {latestEstimate?.id ? (
-                        <Link className="mt-2 block text-sm text-[var(--primary)]" to={`/repair/estimates/${latestEstimate.id}`}>
+                        <span className="mt-2 block text-sm text-[var(--primary)]">
                           {latestEstimate.estimateNumber || "Open estimate"} · {formatCurrency(latestEstimate.totalAmount)}
-                        </Link>
+                        </span>
                       ) : null}
                     </div>
                     <StatusBadge status={ticket.status} />
                   </div>
-                </div>
+                </button>
                 );
               })}
               {!tickets.length ? (
@@ -124,6 +164,7 @@ export function Estimates() {
           <CardHeader><CardTitle>Create Estimate</CardTitle></CardHeader>
           <CardContent>
             <form
+              key={`${activeTicketId}-${selectedTicketDetails?.id || "candidate"}`}
               className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -146,11 +187,16 @@ export function Estimates() {
                 });
               }}
             >
-              <Select name="ticketId" disabled={!createCandidates.length} value={activeTicketId} onChange={(event) => setSelectedTicketId(event.target.value)}>
-                {createCandidates.map((ticket) => <option key={ticket.id} value={ticket.id}>{ticketLabel(ticket)}</option>)}
-              </Select>
+              <input type="hidden" name="ticketId" value={activeTicketId} />
+              {selectedTicket ? (
+                <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-sm">
+                  <p className="font-bold text-slate-900">{ticketLabel(selectedTicket)}</p>
+                  <p className="mt-1 text-[var(--muted)]">{selectedTicket.title || "Selected repair"}</p>
+                  {activeTicketQuery.isLoading ? <p className="mt-1 text-xs text-blue-700">Loading repair details...</p> : null}
+                </div>
+              ) : null}
               {!createCandidates.length ? <p className="text-sm text-[var(--muted)]">No tickets are eligible for estimate creation right now. Created estimates appear in history below.</p> : null}
-              <Textarea name="repairNote" placeholder="Diagnosis, estimate repair note, and customer note" required disabled={!createCandidates.length} />
+              <Textarea name="repairNote" placeholder="Diagnosis, estimate repair note, and customer note" required disabled={!createCandidates.length} defaultValue={estimateNoteFromTicket(selectedTicket)} />
               <Input name="estimatedTurnaroundHours" inputMode="numeric" pattern="[0-9]*" placeholder="Turnaround hours" disabled={!createCandidates.length} />
               <Input name="laborCost" inputMode="decimal" placeholder="Labor Cost" disabled={!createCandidates.length} />
               <Input name="partsCost" inputMode="decimal" placeholder="Parts Cost" disabled={!createCandidates.length} />

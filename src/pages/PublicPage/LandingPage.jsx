@@ -30,9 +30,10 @@ import { Button } from "@/components/ui/Button";
 import { TrustSection } from "./components/TrustSection";
 import { TestimonialsSection } from "./components/TestimonialsSection";
 import { FooterSection } from "./components/FooterSection";
+import { PERMISSIONS } from "@/utils/permissions";
 
 export function LandingPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { hasPermission, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeFeatureStep, setActiveFeatureStep] = useState("check-in");
@@ -40,20 +41,20 @@ export function LandingPage() {
 
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.role === "SUPER_ADMIN") {
+      if (hasPermission(PERMISSIONS.SUPER_ADMIN_MANAGE)) {
         navigate("/super-admin/businesses", { replace: true });
       } else if (
-        user.role === "OWNER" &&
+        hasPermission(PERMISSIONS.SUBSCRIPTION_MANAGE) &&
         user.business?.subscription?.status === "NOT_SELECTED"
       ) {
         navigate("/plans", { replace: true });
-      } else if (user.role === "OWNER" || user.role === "ADMIN") {
+      } else if (hasPermission(PERMISSIONS.REPAIR_INTAKE, PERMISSIONS.SUBSCRIPTION_MANAGE)) {
         navigate("/branch/portal", { replace: true });
       } else {
         navigate("/dashboard", { replace: true });
       }
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [hasPermission, isAuthenticated, user, navigate]);
 
   const [billingPeriod, setBillingPeriod] = useState("monthly"); // monthly or yearly
   const formatRupees = (amount) =>

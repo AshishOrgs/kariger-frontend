@@ -16,7 +16,7 @@ const planFeatures = {
     "2 Branches",
     "50 Repair Devices",
     "5 Active Staff Accounts",
-    "Trial Enabled",
+    "Starter access included",
     "No Payment Required",
   ],
   GROWTH: [
@@ -39,8 +39,8 @@ const planFeatures = {
 };
 
 function trialButtonLabel(plan) {
-  if (plan.plan === "STARTER") return "Start Starter Trial";
-  return `Start ${plan.trialDays || 14}-Day Trial`;
+  if (plan.plan === "STARTER") return "Start Starter Plan";
+  return `Start ${plan.trialDays || 14}-Day Free Access`;
 }
 
 function planPrice(plan) {
@@ -67,11 +67,11 @@ export function PlanSelection() {
     onSuccess: (response) => {
       updateSubscription(response.data.subscription);
       queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
-      toast.success("Trial started. Your workspace is ready.");
+      toast.success("Workspace started. Your dashboard is ready.");
       navigate("/dashboard", { replace: true });
     },
     onError: (error) => {
-      toast.error(error?.response?.data?.message || "Unable to start trial.");
+      toast.error(error?.response?.data?.message || "Unable to start workspace.");
     },
   });
 
@@ -79,7 +79,7 @@ export function PlanSelection() {
     <div>
       <PageHeader
         title="Choose Your Plan"
-        description="Select a trial plan to unlock your KARIGER workspace."
+        description="Select a plan to unlock your KARIGER workspace."
       />
 
       <QueryState

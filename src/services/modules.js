@@ -1,4 +1,4 @@
-import { del, get, patch, post } from "@/services/api";
+import { del, get, patch, post, put } from "@/services/api";
 
 export const authApi = {
   signup: (payload) => post("/auth/signup", payload),
@@ -90,6 +90,8 @@ export const branchesApi = {
 export const staffApi = {
   list: () => get("/staff"),
   createStaff: (payload) => post("/staff", payload),
+  getPermissions: (id) => get(`/staff/${id}/permissions`),
+  updatePermissions: (id, payload) => put(`/staff/${id}/permissions`, payload),
   disable: (id) => post(`/staff/${id}/disable`),
   enable: (id) => post(`/staff/${id}/enable`),
   resetPassword: (id, payload) => post(`/staff/${id}/reset-password`, payload),

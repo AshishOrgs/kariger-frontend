@@ -86,11 +86,11 @@ export function Subscription() {
     onSuccess: (response) => {
       updateSubscription(response.data.subscription);
       queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
-      toast.success("Starter trial started.");
+      toast.success("Starter workspace started.");
       navigate("/dashboard", { replace: true });
     },
     onError: (error) => {
-      toast.error(error?.response?.data?.message || "Unable to start trial.");
+      toast.error(error?.response?.data?.message || "Unable to start workspace.");
     },
   });
 
@@ -205,7 +205,7 @@ export function Subscription() {
                   disabled={trialMutation.isPending}
                   onClick={() => trialMutation.mutate({ plan: "STARTER" })}
                 >
-                  {trialMutation.isPending ? "Starting..." : "Start Starter Trial"}
+                  {trialMutation.isPending ? "Starting..." : "Start Starter Plan"}
                 </Button>
               ) : null}
               <Button className="w-full" disabled={paymentMutation.isPending || !selectedPlan} onClick={handlePay}>

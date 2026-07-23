@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/contexts/ToastContext";
 import { authApi } from "@/services/modules";
 import { clearSession, getAccessToken, getStoredUser, persistSession, updateStoredUser } from "@/services/session";
+import { PERMISSIONS, hasAllPermissions, hasAnyPermission } from "@/utils/permissions";
 
 const AuthContext = createContext(null);
 
@@ -12,18 +13,18 @@ function normalizeRole(role) {
 }
 
 function isServiceActive(user) {
-  if (!user || user.role === "SUPER_ADMIN") return true;
+  if (!user || hasAnyPermission(user.permissions, [PERMISSIONS.SUPER_ADMIN_MANAGE])) return true;
   return Boolean(user.business?.subscription?.isServiceActive);
 }
 
 function needsPlanSelection(user) {
-  return user?.role === "OWNER" && user.business?.subscription?.status === "NOT_SELECTED";
+  return hasAnyPermission(user?.permissions, [PERMISSIONS.SUBSCRIPTION_MANAGE]) && user.business?.subscription?.status === "NOT_SELECTED";
 }
 
 function needsSubscriptionPage(user) {
   const subscription = user?.business?.subscription;
   return (
-    user?.role === "OWNER" &&
+    hasAnyPermission(user?.permissions, [PERMISSIONS.SUBSCRIPTION_MANAGE]) &&
     !isServiceActive(user) &&
     subscription?.effectiveStatus !== "APPROVAL_PENDING"
   );
@@ -31,7 +32,7 @@ function needsSubscriptionPage(user) {
 
 function shouldPollSubscription(user) {
   const subscription = user?.business?.subscription;
-  if (!user || user.role === "SUPER_ADMIN" || !subscription) return false;
+  if (!user || hasAnyPermission(user.permissions, [PERMISSIONS.SUPER_ADMIN_MANAGE]) || !subscription) return false;
   return Boolean(
     subscription.isWorkspaceLocked ||
       subscription.trialWarningLevel ||
@@ -41,9 +42,11 @@ function shouldPollSubscription(user) {
 
 export function AuthProvider({ children }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { clearSubscriptionLimitCache, setLimitScope } = useToast();
   const [user, setUser] = useState(null);
   const [booting, setBooting] = useState(true);
+  const shouldPollCurrentSubscription = shouldPollSubscription(user);
 
   const updateSubscription = useCallback((subscription) => {
     setUser((currentUser) => {
@@ -100,7 +103,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    if (!shouldPollSubscription(user)) return undefined;
+    if (!shouldPollCurrentSubscription) return undefined;
 
     const poll = window.setInterval(() => {
       authApi
@@ -119,11 +122,7 @@ export function AuthProvider({ children }) {
     return () => window.clearInterval(poll);
   }, [
     navigate,
-    user?.business?.subscription?.isServiceActive,
-    user?.business?.subscription?.isWorkspaceLocked,
-    user?.business?.subscription?.status,
-    user?.business?.subscription?.trialWarningLevel,
-    user?.role,
+    shouldPollCurrentSubscription,
   ]);
 
   const loginMutation = useMutation({
@@ -131,15 +130,17 @@ export function AuthProvider({ children }) {
     onSuccess: (response) => {
       persistSession(response.data.user, response.data.tokens);
       setUser(response.data.user);
-      const role = normalizeRole(response.data.user?.role);
+      queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
+      const user = response.data.user;
+      const permissions = user?.permissions || [];
       navigate(
-        role === "SUPER_ADMIN"
+        hasAnyPermission(permissions, [PERMISSIONS.SUPER_ADMIN_MANAGE])
           ? "/super-admin/dashboard"
-          : needsPlanSelection(response.data.user)
+          : needsPlanSelection(user)
           ? "/plans"
-          : needsSubscriptionPage(response.data.user)
+          : needsSubscriptionPage(user)
           ? "/subscription"
-          : ["OWNER", "ADMIN"].includes(role)
+          : hasAnyPermission(permissions, [PERMISSIONS.REPAIR_INTAKE, PERMISSIONS.SUBSCRIPTION_MANAGE])
           ? "/branch/portal"
           : "/dashboard",
         { replace: true }
@@ -159,6 +160,7 @@ export function AuthProvider({ children }) {
         } finally {
           clearSession();
           setUser(null);
+          queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
           navigate("/login", { replace: true });
         }
       },
@@ -166,10 +168,14 @@ export function AuthProvider({ children }) {
         if (!user) return false;
         return roles.includes(normalizeRole(user.role));
       },
+      hasPermission: (...permissions) => hasAnyPermission(user?.permissions, permissions),
+      hasAllPermissions: (...permissions) => hasAllPermissions(user?.permissions, permissions),
+      permissions: user?.permissions || [],
+      accessScope: user?.accessScope || null,
       isServiceActive: isServiceActive(user),
       updateSubscription,
     }),
-    [booting, loginMutation, navigate, updateSubscription, user]
+    [booting, loginMutation, navigate, queryClient, updateSubscription, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

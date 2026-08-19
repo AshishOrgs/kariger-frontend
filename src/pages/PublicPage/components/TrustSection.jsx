@@ -55,9 +55,9 @@ const trustHighlights = [
 ];
 
 const analyticsRows = [
-  ["Branch Revenue", "₹4.8", "18%"],
-  ["Repairs Closed", "1,248", "24%"],
+  ["Tickets Closed", "1,248", "24%"],
   ["Inventory Alerts", "12", "Live"],
+  ["Avg Rating", "3.9★", "Good"],
 ];
 
 export function TrustSection() {
@@ -228,7 +228,7 @@ export function TrustSection() {
             <div className="relative bg-[linear-gradient(135deg,#f8fafc,#ffffff_46%,#ecfeff)] p-4 sm:p-5">
               <div className="grid gap-4 sm:grid-cols-3">
                 {[
-                  ["Revenue", "₹4.8L"],
+                  ["Tickets Closed", "1,248"],
                   ["Repairs", "1,248"],
                   ["SLA", "99.9%"],
                 ].map(([label, value]) => (

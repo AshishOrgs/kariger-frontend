@@ -17,27 +17,19 @@ const footerColumns = [
       { label: "Workflow", href: "/#workflow" },
       { label: "Pricing", href: "/#pricing" },
       { label: "Security", href: "/security-policy" },
-      { label: "API", href: "#", badge: "Coming Soon" },
     ],
   },
   {
     title: "Resources",
     links: [
-      { label: "Documentation", href: "#", badge: "Coming Soon" },
       { label: "Help Center", href: "/contact" },
       { label: "Blog", href: "#", badge: "Coming Soon" },
-      { label: "Release Notes", href: "#", badge: "Coming Soon" },
-      { label: "Contact Support", href: "/contact" },
     ],
   },
   {
     title: "Company",
     links: [
       { label: "About Us", href: "/contact" },
-      { label: "Careers", href: "#", badge: "Coming Soon" },
-      { label: "Partners", href: "/contact" },
-      { label: "Contact", href: "/contact" },
-      { label: "Roadmap", href: "#", badge: "Coming Soon" },
     ],
   },
   {

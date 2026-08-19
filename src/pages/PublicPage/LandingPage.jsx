@@ -206,7 +206,7 @@ export function LandingPage() {
       id: "billing",
       label: "Billing",
       navLabel: "Billing",
-      kicker: "Revenue",
+      kicker: "Billing",
       title: "Create clean invoices and collect payments faster.",
       description:
         "Generate billing records, payment status, GST-ready summaries, and handover confirmation from one workflow.",
@@ -214,7 +214,7 @@ export function LandingPage() {
       benefits: [
         "GST invoice ready",
         "Payment status synced",
-        "Clean revenue records",
+        "Clean billing records",
       ],
       proTip:
         "Generate invoices from approved estimates to keep billing fast and consistent.",
@@ -303,8 +303,8 @@ export function LandingPage() {
     },
     {
       title: "Reports & Analytics",
-      desc: "Understand operational performance across repairs, revenue, technicians, and inventory.",
-      bullets: ["Revenue Trends", "Repair Volume", "Team Output"],
+      desc: "Understand operational performance across repairs, technicians, and inventory with clear analytics.",
+      bullets: ["Repair Trends", "Repair Volume", "Team Output"],
       icon: BarChart3,
     },
   ];
@@ -313,8 +313,8 @@ export function LandingPage() {
     {
       name: "Starter",
       desc: "Perfect for independent repair shops",
-      price: getPlanPrice(299),
-      annualSavings: getAnnualSavings(299),
+      price: getPlanPrice(99),
+      annualSavings: getAnnualSavings(99),
       groups: [
         {
           title: "Operations",
@@ -335,8 +335,8 @@ export function LandingPage() {
     {
       name: "Growth",
       desc: "Best for growing repair businesses",
-      price: getPlanPrice(399),
-      annualSavings: getAnnualSavings(399),
+      price: getPlanPrice(199),
+      annualSavings: getAnnualSavings(199),
       groups: [
         {
           title: "Operations",
@@ -356,7 +356,7 @@ export function LandingPage() {
         {
           title: "Analytics",
           icon: BarChart3,
-          features: ["Revenue trends", "Technician output"],
+          features: ["Repair trends", "Technician output"],
         },
         {
           title: "API",

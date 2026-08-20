@@ -8,7 +8,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Field, Input, PasswordInput } from "@/components/ui/Form";
 import { useAuth } from "@/contexts/AuthContext";
 import { authApi } from "@/services/modules";
-import loginBg from "@/public/assets/login_bg.png";
 
 const schema = z.object({
   email: z.string().email(),
@@ -69,7 +68,7 @@ export function Login() {
   return (
     <main
       className="relative grid min-h-screen place-items-center px-4 py-12 bg-cover bg-center bg-no-repeat antialiased font-sans"
-      style={{ backgroundImage: `url(${loginBg})` }}
+      style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #0f4c75 70%, #0d9488 100%)" }}
     >
       {/* Light Glassy Backdrop Overlay */}
       <div className="absolute inset-0 bg-slate-50/15 backdrop-blur-[1px]" />

@@ -3,6 +3,11 @@ dist
 .git
 .github
 .vscode
+# .env is never committed and should not enter the Docker build context.
+# .env.production is NOT committed either — it is written by GitHub Actions CI
+# (from the FRONTEND_ENV_FILE secret) before docker build runs. The !.env.production
+# exception below allows the CI-created file to be included in the build context
+# so that Vite can bake the production API URL into the static bundle at build time.
 .env
 .env.*
 !.env.production

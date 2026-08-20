@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Field, Input, PasswordInput, Textarea } from "@/components/ui/Form";
 import { authApi } from "@/services/modules";
-import loginBg from "@/public/assets/login_bg.png";
 
 const signupSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -57,7 +56,7 @@ export function Signup() {
   return (
     <main
       className="relative grid min-h-screen place-items-center px-4 py-10 bg-cover bg-center bg-no-repeat antialiased font-sans"
-      style={{ backgroundImage: `url(${loginBg})` }}
+      style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #0f4c75 70%, #0d9488 100%)" }}
     >
       <div className="absolute inset-0 bg-slate-50/15 backdrop-blur-[1px]" />
 

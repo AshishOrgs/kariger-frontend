@@ -11,11 +11,13 @@ export const authApi = {
   getBranchesByEmail: (params) => get("/auth/branches-by-email", params),
 };
 
-export const analyticsApi = {
-  ownerDashboard: (params) => get("/analytics/dashboard/owner", params),
-  statusBreakdown: (params) => get("/analytics/repairs/status-breakdown", params),
-  technicianWorkload: (params) => get("/analytics/technicians/workload", params),
+export const dashboardApi = {
+  ownerDashboard: (params) => get("/dashboard/owner", params),
+  statusBreakdown: (params) => get("/dashboard/repairs/status-breakdown", params),
+  technicianWorkload: (params) => get("/dashboard/technicians/workload", params),
 };
+
+export const analyticsApi = dashboardApi;
 
 export const repairApi = {
   list: (params) => get("/repair/tickets", params),

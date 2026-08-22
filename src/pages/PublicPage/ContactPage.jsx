@@ -76,9 +76,11 @@ export function ContactPage() {
       <header className="sticky top-0 z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] grid place-items-center text-white font-black shadow-md shadow-blue-100">
-              K
-            </div>
+            <img
+              src="/logo.png?v=3"
+              alt="Kariger logo"
+              className="h-9 w-9 rounded-xl border border-slate-200 bg-white object-contain p-0.5 shadow-md shadow-blue-100"
+            />
             <span className="text-lg font-black tracking-tight bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] bg-clip-text text-transparent">
               KARIGER
             </span>
@@ -113,9 +115,9 @@ export function ContactPage() {
 
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
-              <Link to="/branch/portal">
+              <Link to="/dashboard">
                 <Button className="h-10 text-xs font-bold gap-1 shadow-md shadow-blue-200">
-                  Go to Portal
+                  Go to Dashboard
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </Link>

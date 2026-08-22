@@ -11,13 +11,25 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { useToast } from "@/contexts/ToastContext";
 import { branchesApi, staffApi } from "@/services/modules";
+import { cn } from "@/utils/cn";
+import {
+  Building2,
+  GitBranch,
+  Pencil,
+  Trash2,
+  UserRoundCog,
+  X,
+} from "lucide-react";
 
 export function BranchManagement() {
   const queryClient = useQueryClient();
   const toast = useToast();
+
+  // Active modal: null | 'create' | 'edit' | 'assign'
+  const [activeModal, setActiveModal] = useState(null);
   const [editBranchId, setEditBranchId] = useState("");
-  const [adminId, setAdminId] = useState("");
-  const [adminBranchId, setAdminBranchId] = useState("");
+  const [assignStaffId, setAssignStaffId] = useState("");
+  const [assignBranchId, setAssignBranchId] = useState("");
 
   const branchesQuery = useQuery({
     queryKey: ["branches"],
@@ -31,8 +43,12 @@ export function BranchManagement() {
 
   const branches = useMemo(() => branchesQuery.data?.data?.branches || [], [branchesQuery.data]);
   const staff = useMemo(() => staffQuery.data?.data?.staff || [], [staffQuery.data]);
-  const admins = useMemo(() => staff.filter((member) => member.role === "ADMIN"), [staff]);
-  const editBranch = branches.find((branch) => branch.id === editBranchId);
+  // All staff who can be assigned to a branch (ADMIN or TECHNICIAN)
+  const assignableStaff = useMemo(
+    () => staff.filter((member) => member.role === "ADMIN" || member.role === "BRANCH_ADMIN" || member.role === "TECHNICIAN"),
+    [staff],
+  );
+  const editBranch = branches.find((b) => b.id === editBranchId);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["branches"] });
@@ -50,6 +66,7 @@ export function BranchManagement() {
     },
     onSuccess: () => {
       refresh();
+      setActiveModal(null);
       toast.success("Branch created.");
     },
     onError: (error) => {
@@ -62,6 +79,8 @@ export function BranchManagement() {
     mutationFn: ({ id, payload }) => branchesApi.update(id, payload),
     onSuccess: () => {
       refresh();
+      setActiveModal(null);
+      setEditBranchId("");
       toast.success("Branch updated.");
     },
     onError: (error) => toast.error(error?.response?.data?.message || "Unable to update branch."),
@@ -89,9 +108,12 @@ export function BranchManagement() {
     mutationFn: ({ id, branchId }) => staffApi.assignBranch(id, { branchId }),
     onSuccess: () => {
       refresh();
-      toast.success("Admin branch assignment updated.");
+      setActiveModal(null);
+      setAssignStaffId("");
+      setAssignBranchId("");
+      toast.success("Staff branch assignment updated.");
     },
-    onError: (error) => toast.error(error?.response?.data?.message || "Unable to assign admin to branch."),
+    onError: (error) => toast.error(error?.response?.data?.message || "Unable to assign staff to branch."),
   });
 
   const buildBranchPayload = (form) => ({
@@ -100,58 +122,178 @@ export function BranchManagement() {
     phone: String(form.get("phone") || "").trim() || undefined,
     email: String(form.get("email") || "").trim() || undefined,
     address: String(form.get("address") || "").trim() || undefined,
-    isMainBranch: form.get("isMainBranch") === "on",
   });
 
+  const openEdit = (branchId) => {
+    setEditBranchId(branchId);
+    setActiveModal("edit");
+  };
+
+  const closeModal = () => {
+    setActiveModal(null);
+    setEditBranchId("");
+    setAssignStaffId("");
+    setAssignBranchId("");
+  };
+
+  // When a staff member is selected for assignment, auto-set their current branch
+  const handleStaffSelect = (staffId) => {
+    setAssignStaffId(staffId);
+    const member = staff.find((s) => s.id === staffId);
+    setAssignBranchId(member?.branchId || "");
+  };
+
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
-        title="Branches"
-        description="Owner-managed shop branches. ERP data is scoped by branch for Admin and Technician users."
+        title="Branch Management"
+        description="Manage shop branches, assign staff, and control branch-level access. ERP data is scoped by branch."
       />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Branch List</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <QueryState
-              isLoading={branchesQuery.isLoading}
-              error={branchesQuery.error}
-              isEmpty={branches.length === 0}
-              emptyTitle="No branches"
-              emptyDescription="Create the first active branch for this business."
-              onRetry={branchesQuery.refetch}
-            >
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Branch</Th>
-                    <Th>Code</Th>
-                    <Th>Contact</Th>
-                    <Th>Status</Th>
-                    <Th>Action</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {branches.map((branch) => (
-                    <tr key={branch.id}>
+
+      {/* TOP HORIZONTAL ACTION BUTTONS */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Button
+          type="button"
+          size="sm"
+          className="h-10 px-4 text-xs font-bold gap-2 bg-[#1769aa] text-white hover:bg-[#125388] shadow-sm"
+          onClick={() => setActiveModal("create")}
+        >
+          <Building2 className="h-4 w-4" />
+          Create Branch
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-10 px-4 text-xs font-semibold gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
+          onClick={() => {
+            setEditBranchId(branches[0]?.id || "");
+            setActiveModal("edit");
+          }}
+          disabled={branches.length === 0}
+        >
+          <Pencil className="h-4 w-4 text-indigo-600" />
+          Edit Branch
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-10 px-4 text-xs font-semibold gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
+          onClick={() => setActiveModal("assign")}
+          disabled={assignableStaff.length === 0 || branches.length === 0}
+        >
+          <UserRoundCog className="h-4 w-4 text-teal-600" />
+          Assign Staff to Branch
+        </Button>
+      </div>
+
+      {/* BRANCH LIST CARD */}
+      <Card className="border border-slate-200/80 shadow-sm">
+        <CardHeader className="border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2">
+            <GitBranch className="h-5 w-5 text-[#1769aa]" />
+            <CardTitle className="text-lg font-bold text-slate-900">Branch Directory</CardTitle>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            {branches.length} branch{branches.length === 1 ? "" : "es"} registered
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <QueryState
+            isLoading={branchesQuery.isLoading}
+            error={branchesQuery.error}
+            isEmpty={branches.length === 0}
+            emptyTitle="No branches yet"
+            emptyDescription="Click 'Create Branch' above to add your first branch."
+            onRetry={branchesQuery.refetch}
+          >
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Branch</Th>
+                  <Th>Code</Th>
+                  <Th>Contact</Th>
+                  <Th>Assigned Staff</Th>
+                  <Th>Status</Th>
+                  <Th className="text-right">Action</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {branches.map((branch) => {
+                  const branchStaff = staff.filter((s) => s.branchId === branch.id || s.branch?.id === branch.id);
+                  return (
+                    <tr key={branch.id} className="hover:bg-slate-50/70 transition-colors">
                       <Td>
-                        <p className="font-semibold">{branch.name}</p>
-                        <p className="text-xs text-[var(--muted)]">{branch.isMainBranch ? "Main branch" : branch.address || "Address not set"}</p>
+                        <div>
+                          <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                            {branch.name}
+                            {branch.isMainBranch && (
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-extrabold text-blue-700 tracking-wider">
+                                MAIN
+                              </span>
+                            )}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {branch.address || "Address not set"}
+                          </p>
+                        </div>
                       </Td>
-                      <Td>{branch.code}</Td>
                       <Td>
-                        <p>{branch.phone || "Phone not set"}</p>
-                        <p className="text-xs text-[var(--muted)]">{branch.email || "Email not set"}</p>
+                        <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                          {branch.code || "—"}
+                        </span>
                       </Td>
-                      <Td><StatusBadge status={branch.status} /></Td>
                       <Td>
-                        <div className="flex flex-wrap gap-2">
+                        <p className="text-slate-700 text-sm">{branch.phone || "Not set"}</p>
+                        <p className="text-xs text-slate-500">{branch.email || "Not set"}</p>
+                      </Td>
+                      <Td>
+                        {branchStaff.length > 0 ? (
+                          <div className="flex flex-col gap-1">
+                            {branchStaff.map((s) => (
+                              <div key={s.id} className="flex items-center gap-1.5">
+                                <span
+                                  className={cn(
+                                    "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold",
+                                    s.role === "ADMIN" || s.role === "BRANCH_ADMIN"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : "bg-teal-100 text-teal-700"
+                                  )}
+                                >
+                                  {s.role === "ADMIN" || s.role === "BRANCH_ADMIN" ? "Admin" : "Tech"}
+                                </span>
+                                <span className="text-xs font-semibold text-slate-800 truncate max-w-[90px]">
+                                  {s.fullName}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No staff assigned</span>
+                        )}
+                      </Td>
+                      <Td>
+                        <StatusBadge status={branch.status} />
+                      </Td>
+                      <Td className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
                           <Link to={`/branches/${branch.id}`}>
-                            <Button size="sm" variant="primary">View</Button>
+                            <Button size="sm" variant="secondary" className="h-8 px-2.5 text-xs">
+                              View
+                            </Button>
                           </Link>
-                          <Button size="sm" variant="secondary" onClick={() => setEditBranchId(branch.id)}>Edit</Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="h-8 px-2.5 text-xs gap-1"
+                            onClick={() => openEdit(branch.id)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            Edit
+                          </Button>
                           <ConfirmAction
                             title={branch.status === "ACTIVE" ? "Deactivate branch?" : "Activate branch?"}
                             description="Branch status controls whether new staff and operational work can use this branch."
@@ -165,7 +307,14 @@ export function BranchManagement() {
                               })
                             }
                           >
-                            {branch.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 px-2.5 text-xs text-amber-700 hover:bg-amber-50"
+                              disabled={branch.isMainBranch || statusMutation.isPending}
+                            >
+                              {branch.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                            </Button>
                           </ConfirmAction>
                           <ConfirmAction
                             title="Delete branch?"
@@ -175,112 +324,279 @@ export function BranchManagement() {
                             disabled={branch.isMainBranch || deleteMutation.isPending}
                             onConfirm={() => deleteMutation.mutate(branch.id)}
                           >
-                            Delete
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="h-8 w-8 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
+                              disabled={branch.isMainBranch || deleteMutation.isPending}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
                           </ConfirmAction>
                         </div>
                       </Td>
                     </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </QueryState>
-          </CardContent>
-        </Card>
-        <div className="space-y-5">
-          <Card>
-            <CardHeader>
-              <CardTitle>{editBranch ? "Edit Branch" : "Create Branch"}</CardTitle>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </QueryState>
+        </CardContent>
+      </Card>
+
+      {/* 1. CREATE BRANCH MODAL */}
+      {activeModal === "create" && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/50 p-4 grid place-items-center overflow-y-auto">
+          <Card className="w-full max-w-xl bg-white shadow-2xl rounded-2xl overflow-hidden my-8 border border-white/80">
+            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-[#1769aa]" />
+                  Create New Branch
+                </CardTitle>
+                <p className="mt-0.5 text-xs text-slate-500">Add a new operational branch to your workspace</p>
+              </div>
+              <button
+                type="button"
+                className="h-8 w-8 rounded-lg border border-slate-200 grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                onClick={closeModal}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               <form
-                key={editBranch?.id || "create"}
-                className="space-y-3"
+                className="space-y-4"
                 onSubmit={async (event) => {
                   event.preventDefault();
                   const payload = buildBranchPayload(new FormData(event.currentTarget));
-                  if (editBranch) {
-                    try {
-                      await updateMutation.mutateAsync({ id: editBranch.id, payload });
-                      setEditBranchId("");
-                    } catch {
-                      // Error toast is handled by the mutation.
-                    }
-                  } else {
-                    try {
-                      await createMutation.mutateAsync(payload);
-                      event.currentTarget.reset();
-                    } catch {
-                      // Error toast is handled by the mutation.
-                    }
+                  try {
+                    await createMutation.mutateAsync(payload);
+                    event.currentTarget.reset();
+                  } catch {
+                    // Error handled by mutation.
                   }
                 }}
               >
-                <Field label="Branch Name"><Input name="name" defaultValue={editBranch?.name || ""} required /></Field>
-                <Field label="Branch Code (Optional)"><Input name="code" defaultValue={editBranch?.code || ""} /></Field>
-                <Field label="Phone"><Input name="phone" defaultValue={editBranch?.phone || ""} /></Field>
-                <Field label="Email"><Input name="email" type="email" defaultValue={editBranch?.email || ""} /></Field>
-                <Field label="Address"><Textarea name="address" defaultValue={editBranch?.address || ""} /></Field>
-                <label className="flex items-center gap-2 text-sm font-medium">
-                  <input type="checkbox" name="isMainBranch" defaultChecked={Boolean(editBranch?.isMainBranch)} />
-                  Main branch
-                </label>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {editBranch ? (
-                    <Button type="button" variant="secondary" onClick={() => setEditBranchId("")}>Cancel</Button>
-                  ) : null}
-                  <Button className="sm:col-span-1" disabled={createMutation.isPending || updateMutation.isPending}>
-                    {editBranch ? "Save Branch" : "Create Branch"}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Branch Details</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Branch Name">
+                      <Input name="name" placeholder="e.g. Main Branch" required />
+                    </Field>
+                    <Field label="Branch Code (Optional)">
+                      <Input name="code" placeholder="e.g. MBR" />
+                    </Field>
+                    <Field label="Phone">
+                      <Input name="phone" placeholder="Contact number" />
+                    </Field>
+                    <Field label="Email">
+                      <Input name="email" type="email" placeholder="branch@shop.com" />
+                    </Field>
+                  </div>
+                  <Field label="Address">
+                    <Textarea name="address" placeholder="Full branch address" />
+                  </Field>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <Button type="button" variant="secondary" onClick={closeModal}>
+                    Cancel
+                  </Button>
+                  <Button disabled={createMutation.isPending}>
+                    {createMutation.isPending ? "Creating..." : "Create Branch"}
                   </Button>
                 </div>
               </form>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Assign Admin To Branch</CardTitle>
+        </div>
+      )}
+
+      {/* 2. EDIT BRANCH MODAL */}
+      {activeModal === "edit" && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/50 p-4 grid place-items-center overflow-y-auto">
+          <Card className="w-full max-w-xl bg-white shadow-2xl rounded-2xl overflow-hidden my-8 border border-white/80">
+            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <Pencil className="h-5 w-5 text-indigo-600" />
+                  Edit Branch
+                </CardTitle>
+                <p className="mt-0.5 text-xs text-slate-500">Select a branch and update its details</p>
+              </div>
+              <button
+                type="button"
+                className="h-8 w-8 rounded-lg border border-slate-200 grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                onClick={closeModal}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6 space-y-4">
+              {/* Branch Selector */}
+              <Field label="Select Branch to Edit">
+                <Select
+                  value={editBranchId}
+                  onChange={(e) => setEditBranchId(e.target.value)}
+                >
+                  <option value="">-- Select Branch --</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} {b.isMainBranch ? "(Main)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              {editBranch && (
+                <form
+                  key={editBranch.id}
+                  className="space-y-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    const payload = buildBranchPayload(new FormData(event.currentTarget));
+                    try {
+                      await updateMutation.mutateAsync({ id: editBranch.id, payload });
+                    } catch {
+                      // Error handled by mutation.
+                    }
+                  }}
+                >
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                    <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Branch Details</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Field label="Branch Name">
+                        <Input name="name" defaultValue={editBranch.name} required />
+                      </Field>
+                      <Field label="Branch Code">
+                        <Input name="code" defaultValue={editBranch.code || ""} />
+                      </Field>
+                      <Field label="Phone">
+                        <Input name="phone" defaultValue={editBranch.phone || ""} />
+                      </Field>
+                      <Field label="Email">
+                        <Input name="email" type="email" defaultValue={editBranch.email || ""} />
+                      </Field>
+                    </div>
+                    <Field label="Address">
+                      <Textarea name="address" defaultValue={editBranch.address || ""} />
+                    </Field>
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button type="button" variant="secondary" onClick={closeModal}>
+                      Cancel
+                    </Button>
+                    <Button disabled={updateMutation.isPending}>
+                      {updateMutation.isPending ? "Saving..." : "Save Branch"}
+                    </Button>
+                  </div>
+                </form>
+              )}
+
+              {!editBranch && (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center text-xs text-slate-400">
+                  Select a branch above to edit its details.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* 3. ASSIGN STAFF TO BRANCH MODAL */}
+      {activeModal === "assign" && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/50 p-4 grid place-items-center overflow-y-auto">
+          <Card className="w-full max-w-md bg-white shadow-2xl rounded-2xl overflow-hidden my-8 border border-white/80">
+            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <UserRoundCog className="h-5 w-5 text-teal-600" />
+                  Assign Staff to Branch
+                </CardTitle>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Select a staff member and choose which branch to assign them to
+                </p>
+              </div>
+              <button
+                type="button"
+                className="h-8 w-8 rounded-lg border border-slate-200 grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                onClick={closeModal}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </CardHeader>
+            <CardContent className="p-6">
               <form
-                className="space-y-3"
+                className="space-y-4"
                 onSubmit={async (event) => {
                   event.preventDefault();
                   try {
-                    await assignMutation.mutateAsync({ id: adminId, branchId: adminBranchId });
-                    setAdminId("");
-                    setAdminBranchId("");
+                    await assignMutation.mutateAsync({ id: assignStaffId, branchId: assignBranchId });
                   } catch {
-                    // Error toast is handled by the mutation.
+                    // Error handled by mutation.
                   }
                 }}
               >
-                <Field label="Admin">
-                  <Select required value={adminId} onChange={(event) => setAdminId(event.target.value)}>
-                    <option value="">Select admin</option>
-                    {admins.map((admin) => (
-                      <option key={admin.id} value={admin.id}>
-                        {admin.fullName} · {admin.branch?.name || "No branch"}
+                <Field label="Select Staff Member">
+                  <Select
+                    required
+                    value={assignStaffId}
+                    onChange={(e) => handleStaffSelect(e.target.value)}
+                  >
+                    <option value="">-- Select Staff Member --</option>
+                    {assignableStaff.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.fullName} · {member.role === "ADMIN" || member.role === "BRANCH_ADMIN" ? "Admin" : "Technician"} {member.branch?.name ? `(${member.branch.name})` : "(No branch)"}
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="Branch">
-                  <Select required value={adminBranchId} onChange={(event) => setAdminBranchId(event.target.value)}>
-                    <option value="">Select branch</option>
+
+                {assignStaffId && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-1">
+                    {(() => {
+                      const member = staff.find((s) => s.id === assignStaffId);
+                      return member ? (
+                        <>
+                          <p className="font-bold text-sm text-slate-900">{member.fullName}</p>
+                          <p>Email: <span className="font-medium">{member.email}</span></p>
+                          <p>Current Branch: <span className="font-medium">{member.branch?.name || "Not assigned"}</span></p>
+                        </>
+                      ) : null;
+                    })()}
+                  </div>
+                )}
+
+                <Field label="Assign to Branch">
+                  <Select
+                    required
+                    value={assignBranchId}
+                    onChange={(e) => setAssignBranchId(e.target.value)}
+                  >
+                    <option value="">-- Select Branch --</option>
                     {branches
-                      .filter((branch) => branch.status === "ACTIVE")
-                      .map((branch) => (
-                        <option key={branch.id} value={branch.id}>{branch.name}</option>
+                      .filter((b) => b.status === "ACTIVE")
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} {b.isMainBranch ? "(Main)" : ""}
+                        </option>
                       ))}
                   </Select>
                 </Field>
-                <Button className="w-full" disabled={!adminId || !adminBranchId || assignMutation.isPending}>
-                  Assign Admin
-                </Button>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <Button type="button" variant="secondary" onClick={closeModal}>
+                    Cancel
+                  </Button>
+                  <Button disabled={!assignStaffId || !assignBranchId || assignMutation.isPending}>
+                    {assignMutation.isPending ? "Assigning..." : "Assign Staff"}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
         </div>
-      </div>
+      )}
     </div>
   );
 }

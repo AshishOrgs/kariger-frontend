@@ -1,17 +1,18 @@
 import { useMemo, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   BadgePlus,
   Building2,
   Clock3,
   ClipboardList,
   FolderKanban,
+  Gauge,
   LockKeyhole,
   LogOut,
   Menu,
   Settings2,
   Sparkles,
-  Home,
+  UserRoundCog,
   Users,
   X,
 } from "lucide-react";
@@ -52,7 +53,15 @@ export function AppLayout() {
     return branches.find((b) => b.isMainBranch) || branches[0];
   }, [accessScope?.branchScope, user?.branch, user?.branchId, branches, selectedBranchId, allBranchesValue]);
 
-  const brandLogo = isSuperAdmin ? "" : activeBranch?.metadata?.logo || "";
+  const sortedBranches = useMemo(() => {
+    return [...branches].sort((a, b) => {
+      if (a.isMainBranch) return -1;
+      if (b.isMainBranch) return 1;
+      return (a.name || "").localeCompare(b.name || "");
+    });
+  }, [branches]);
+
+  const brandLogo = isSuperAdmin ? "/logo.png" : activeBranch?.metadata?.logo || "/logo.png";
   const brandTitle = isSuperAdmin
     ? "Repair ERP Platform"
     : activeBranch?.metadata?.title || activeBranch?.name || "Repair ERP";
@@ -99,17 +108,20 @@ export function AppLayout() {
       >
         <div className="flex h-16 shrink-0 items-center gap-3 border-b border-[var(--border)] px-5">
           <Link
-            to={isSuperAdmin ? "/super-admin/dashboard" : "/branch/portal"}
+            to={isSuperAdmin ? "/super-admin/dashboard" : "/dashboard"}
             className="flex min-w-0 flex-1 items-center gap-3"
             onClick={closeMobileSidebar}
           >
-            {brandLogo ? (
-              <img src={brandLogo} alt="Logo" className="h-8 w-8 rounded-lg object-contain bg-slate-50 p-0.5 border border-slate-100 shrink-0" onError={(e) => { e.target.style.display = 'none'; }} />
-            ) : (
-              <div className="h-8 w-8 rounded-lg bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] grid place-items-center text-white text-[10px] font-black shrink-0 shadow-inner">
-                {isSuperAdmin ? "SA" : brandTitle.substring(0, 2).toUpperCase()}
-              </div>
-            )}
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-white p-1 shadow-sm shadow-slate-200/60">
+              <img
+                src={brandLogo}
+                alt="Logo"
+                className="h-full w-full rounded-xl object-contain"
+                onError={(e) => {
+                  e.currentTarget.style.display = "none";
+                }}
+              />
+            </div>
             <div className="min-w-0">
               <p className="text-sm font-bold text-slate-800 truncate" title={brandTitle}>{brandTitle}</p>
               <p className="text-[10px] text-[var(--muted)] truncate" title={brandSlogan}>{brandSlogan}</p>
@@ -121,16 +133,15 @@ export function AppLayout() {
             <p className="mb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Branch</p>
             <Select
               className="w-full"
-              value={selectedBranchId}
+              value={selectedBranchId || sortedBranches[0]?.id || ""}
               onChange={(event) => {
                 setSelectedBranchId(event.target.value);
                 window.location.reload();
               }}
             >
-              <option value={allBranchesValue}>All branches</option>
-              {branches.map((branch) => (
+              {sortedBranches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
-                  {branch.name}
+                  {branch.name} {branch.isMainBranch ? "(Main)" : ""}
                 </option>
               ))}
             </Select>
@@ -174,16 +185,15 @@ export function AppLayout() {
           {showBranchSelector ? (
             <Select
               className="hidden w-56 sm:block"
-              value={selectedBranchId}
+              value={selectedBranchId || sortedBranches[0]?.id || ""}
               onChange={(event) => {
                 setSelectedBranchId(event.target.value);
                 window.location.reload();
               }}
             >
-              <option value={allBranchesValue}>All branches</option>
-              {branches.map((branch) => (
+              {sortedBranches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
-                  {branch.name}
+                  {branch.name} {branch.isMainBranch ? "(Main)" : ""}
                 </option>
               ))}
             </Select>
@@ -212,12 +222,12 @@ export function AppLayout() {
 const mobileSectionIconTone = {
   Dashboard: "bg-sky-50 text-sky-700",
   "Repair Intake": "bg-teal-50 text-teal-700",
+  "Repair Estimates": "bg-indigo-50 text-indigo-700",
   "Repair Jobs": "bg-blue-50 text-blue-700",
-  "Repair Work": "bg-emerald-50 text-emerald-700",
+  "Technician Work": "bg-emerald-50 text-emerald-700",
   Billing: "bg-amber-50 text-amber-700",
   Handover: "bg-teal-50 text-teal-700",
   Inventory: "bg-cyan-50 text-cyan-700",
-  Reports: "bg-indigo-50 text-indigo-700",
   Staff: "bg-violet-50 text-violet-700",
   Branches: "bg-sky-50 text-sky-700",
   Business: "bg-slate-100 text-slate-700",
@@ -241,14 +251,15 @@ function SidebarLink({ item, activeRoute, onNavigate }) {
 }
 
 const bottomNavConfig = [
-  { id: "home", label: "Home", icon: Home },
+  { id: "home", label: "Dashboard", icon: Gauge },
   { id: "repairs", label: "Repairs", icon: ClipboardList },
-  { id: "team", label: "Team", icon: Users },
+  { id: "team", label: "Staff", icon: UserRoundCog },
   { id: "business", label: "Business", icon: Building2 },
   { id: "more", label: "More", icon: Settings2 },
 ];
 
 function MobileNavigation({ items, activeRoute, activePanel, setActivePanel, onClosePanel, canCreateRepair }) {
+  const navigate = useNavigate();
   const itemsByCategory = useMemo(() => {
     return items.reduce((acc, item) => {
       const category = item.category || "more";
@@ -266,7 +277,7 @@ function MobileNavigation({ items, activeRoute, activePanel, setActivePanel, onC
     })
     .filter(Boolean);
 
-  const panel = bottomItems.find((entry) => entry.id === activePanel);
+  const panel = bottomItems.find((entry) => entry.id === activePanel && entry.items.length > 1);
   const createRepairVisible = canCreateRepair && routePathname(activeRoute) !== "/repair/new";
 
   return (
@@ -313,11 +324,20 @@ function MobileNavigation({ items, activeRoute, activePanel, setActivePanel, onC
           {bottomItems.map((entry) => {
             const Icon = entry.icon;
             const active = activePanel === entry.id || entry.items.some((item) => isNavigationActive(activeRoute, item.path));
+            const isSingle = entry.items.length === 1;
+
             return (
               <button
                 key={entry.id}
                 type="button"
-                onClick={() => setActivePanel(activePanel === entry.id ? null : entry.id)}
+                onClick={() => {
+                  if (isSingle) {
+                    onClosePanel();
+                    navigate(entry.items[0].path);
+                  } else {
+                    setActivePanel(activePanel === entry.id ? null : entry.id);
+                  }
+                }}
                 className={cn(
                   "flex min-w-0 flex-col items-center gap-1 rounded-xl px-1.5 py-2 text-[11px] font-black text-slate-500 transition",
                   active && "bg-blue-50 text-[var(--primary)]"
@@ -364,14 +384,9 @@ function isNavigationActive(activeRoute, path) {
   const pathname = routePathname(activeRoute);
   const targetPathname = routePathname(path);
   const targetSearch = routeSearch(path);
-  const activeSearch = routeSearch(activeRoute);
 
   if (targetSearch) {
-    return pathname === targetPathname && activeSearch === targetSearch;
-  }
-
-  if (activeSearch && pathname === targetPathname) {
-    return false;
+    return pathname === targetPathname && routeSearch(activeRoute) === targetSearch;
   }
 
   if (path === "/repair") {

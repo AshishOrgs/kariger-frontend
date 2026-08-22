@@ -51,7 +51,7 @@ export function BusinessProfile() {
   return (
     <div>
       <PageHeader
-        title="Business Profile"
+        title="Profile"
         description="Owner-managed shop identity, branding, contact, address, and tax details."
       />
       <QueryState

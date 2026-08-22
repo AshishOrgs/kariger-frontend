@@ -133,15 +133,16 @@ export function AppRoutes() {
         <Route element={<ProtectedRoute />} >
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<RequirePermission anyOf={dashboardPermissions}><Dashboard /></RequirePermission>} />
-            <Route path="/branch/portal" element={<RequirePermission anyOf={branchPortalPermissions}><BranchPortal /></RequirePermission>} />
+            <Route path="/branch/portal" element={<Navigate to="/dashboard" replace />} />
             <Route path="/plans" element={<RequirePermission anyOf={subscriptionPermissions}><PlanSelection /></RequirePermission>} />
             <Route path="/branches/:id" element={<RequirePermission anyOf={branchViewPermissions}><BranchDetails /></RequirePermission>} />
-            <Route path="/admin/workflow" element={<RequirePermission anyOf={branchPortalPermissions}><AdminWorkflow /></RequirePermission>} />
+            <Route path="/admin/workflow" element={<Navigate to="/dashboard" replace />} />
             <Route path="/assignments" element={<RequirePermission anyOf={assignmentPermissions}><Assignments /></RequirePermission>} />
             <Route path="/billing" element={<RequirePermission anyOf={billingPermissions}><Billing /></RequirePermission>} />
             <Route path="/billing/invoices/:id" element={<RequirePermission anyOf={billingPermissions}><InvoiceDetailsRoute /></RequirePermission>} />
             <Route path="/branches" element={<RequirePermission anyOf={branchManagePermissions}><BranchManagement /></RequirePermission>} />
             <Route path="/business" element={<RequirePermission anyOf={businessPermissions}><BusinessProfile /></RequirePermission>} />
+            <Route path="/profile" element={<RequirePermission anyOf={businessPermissions}><BusinessProfile /></RequirePermission>} />
             <Route path="/customers" element={<RequirePermission anyOf={repairViewPermissions}><Customers /></RequirePermission>} />
             <Route path="/customers/:id" element={<RequirePermission anyOf={repairViewPermissions}><CustomerDetailsRoute /></RequirePermission>} />
             <Route path="/handover" element={<RequirePermission anyOf={handoverPermissions}><Handover /></RequirePermission>} />
@@ -149,7 +150,7 @@ export function AppRoutes() {
             <Route path="/inventory/:id" element={<RequirePermission anyOf={inventoryPermissions}><InventoryDetailsRoute /></RequirePermission>} />
             <Route path="/repair" element={<RequirePermission anyOf={repairViewPermissions}><Repair /></RequirePermission>} />
             <Route path="/repair/new" element={<RequirePermission anyOf={repairIntakePermissions}><CreateRepair /></RequirePermission>} />
-            <Route path="/repair/estimates" element={<RequirePermission anyOf={estimatePermissions}><Estimates /></RequirePermission>} />
+            <Route path="/repair/estimates" element={<Navigate to="/repair/new" replace />} />
             <Route path="/repair/estimates/:id" element={<RequirePermission anyOf={estimatePermissions}><EstimateDetailsRoute /></RequirePermission>} />
             <Route path="/repair/:id" element={<RequirePermission anyOf={repairViewPermissions}><RepairDetailsRoute /></RequirePermission>} />
             <Route path="/staff" element={<RequirePermission anyOf={staffPermissions}><StaffManagement /></RequirePermission>} />

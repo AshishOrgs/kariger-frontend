@@ -110,9 +110,11 @@ export function FooterSection() {
           <div className="grid grid-cols-2 gap-x-6 gap-y-10 sm:gap-x-8 lg:grid-cols-[1.25fr_repeat(3,minmax(0,1fr))] lg:gap-8">
             <div className="col-span-2 lg:col-span-1">
               <Link to="/" className="inline-flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-2xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-lg font-black text-white shadow-lg shadow-blue-100">
-                  K
-                </div>
+                <img
+                  src="/logo.png"
+                  alt="Kariger logo"
+                  className="h-11 w-11 rounded-2xl border border-slate-200 bg-white object-contain shadow-lg shadow-blue-100"
+                />
                 <span className="text-xl font-black tracking-tight text-slate-950">
                   KARIGER
                 </span>

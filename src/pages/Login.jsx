@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -7,60 +7,53 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Field, Input, PasswordInput } from "@/components/ui/Form";
 import { useAuth } from "@/contexts/AuthContext";
-import { authApi } from "@/services/modules";
+import { PERMISSIONS } from "@/utils/permissions";
 
 const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  branchName: z.string().optional().nullable(),
+  email: z.string().email("Please enter a valid email address"),
+  password: z.string().min(1, "Password is required"),
 });
 
 export function Login() {
-  const { login } = useAuth();
-  const [branches, setBranches] = useState([]);
+  const { login, isAuthenticated, user, hasPermission } = useAuth();
+  const navigate = useNavigate();
+
   const form = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "", branchName: "" },
+    defaultValues: { email: "", password: "" },
   });
 
-  const emailValue = form.watch("email");
-
   useEffect(() => {
-    const fetchBranches = async () => {
-      if (!emailValue || !emailValue.includes("@")) {
-        setBranches([]);
-        return;
+    if (isAuthenticated && user) {
+      if (hasPermission(PERMISSIONS.SUPER_ADMIN_MANAGE)) {
+        navigate("/super-admin/dashboard", { replace: true });
+      } else if (
+        hasPermission(PERMISSIONS.SUBSCRIPTION_MANAGE) &&
+        user.business?.subscription?.status === "NOT_SELECTED"
+      ) {
+        navigate("/plans", { replace: true });
+      } else if (hasPermission(PERMISSIONS.REPAIR_INTAKE, PERMISSIONS.SUBSCRIPTION_MANAGE)) {
+        navigate("/dashboard", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
       }
-      try {
-        const response = await authApi.getBranchesByEmail({
-          email: emailValue.trim(),
-        });
-        setBranches(response?.data?.branches || []);
-      } catch (err) {
-        console.error("Failed to fetch branch suggestions", err);
-      }
-    };
-
-    const debounceTimer = setTimeout(() => {
-      fetchBranches();
-    }, 500);
-
-    return () => clearTimeout(debounceTimer);
-  }, [emailValue]);
+    }
+  }, [hasPermission, isAuthenticated, user, navigate]);
 
   async function submit(values) {
     try {
-      const payload = {
-        email: values.email,
+      await login({
+        email: values.email.trim(),
         password: values.password,
-        branchName: values.branchName?.trim() || undefined,
-      };
-      await login(payload);
+      });
     } catch (error) {
+      const errorMsg = error?.response?.data?.message;
+      const isInvalidCreds = errorMsg?.toLowerCase().includes("invalid credentials");
+
       form.setError("root", {
-        message:
-          error?.response?.data?.message ||
-          "Invalid credentials or branch check failed.",
+        message: isInvalidCreds
+          ? "Invalid email or password. If you do not have an account, please contact your administrator."
+          : errorMsg || "Failed to sign in. Please try again.",
       });
     }
   }
@@ -108,9 +101,17 @@ export function Login() {
 
             <Field
               label={
-                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
-                  Password
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
+                    Password
+                  </span>
+                  <Link
+                    to="/forgot-password"
+                    className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:underline"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
               }
               error={form.formState.errors.password?.message}
             >
@@ -122,31 +123,6 @@ export function Login() {
               />
             </Field>
 
-            <Field
-              label={
-                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">
-                  Branch Context{" "}
-                  <span className="text-[9px] font-normal text-slate-400 normal-case">
-                    (Staff only)
-                  </span>
-                </span>
-              }
-              error={form.formState.errors.branchName?.message}
-            >
-              <Input
-                type="text"
-                placeholder="e.g. Main Branch"
-                list="login-branch-suggestions"
-                className="mt-1.5 bg-white/80 border-slate-200/80 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg text-xs h-11"
-                {...form.register("branchName")}
-              />
-              <datalist id="login-branch-suggestions">
-                {branches.map((b) => (
-                  <option key={b.id} value={b.name} />
-                ))}
-              </datalist>
-            </Field>
-
             {form.formState.errors.root ? (
               <div className="rounded-lg bg-red-50 border border-red-100 p-3 text-xs text-red-600 font-semibold leading-normal">
                 {form.formState.errors.root.message}
@@ -154,7 +130,7 @@ export function Login() {
             ) : null}
 
             <Button
-              className="w-full h-11 text-xs font-black bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-white border-none shadow-lg shadow-blue-200/50 hover:brightness-95 transition-all mt-6 rounded-lg cursor-pointer"
+              className="w-full h-11 text-xs font-black bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-white border-none shadow-lg shadow-blue-200/50 hover:brightness-95 transition-all mt-4 rounded-lg cursor-pointer"
               disabled={form.formState.isSubmitting}
             >
               {form.formState.isSubmitting
@@ -162,27 +138,12 @@ export function Login() {
                 : "Login to Portal"}
             </Button>
 
-            <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100 mt-6 text-xs">
-              <Link
-                to="/signup"
-                className="font-bold text-[#1769aa] hover:underline"
-              >
-                Owner signup
-              </Link>
-              <Link
-                to="/forgot-password"
-                className="font-bold text-slate-500 hover:text-slate-800 hover:underline"
-              >
-                Forgot password?
-              </Link>
-            </div>
-
-            <div className="text-center">
+            <div className="pt-4 border-t border-slate-100/80 mt-6 text-center">
               <Link
                 to="/"
-                className="text-xs text-slate-400 hover:text-slate-700 transition-colors font-bold inline-flex items-center gap-1"
+                className="text-xs text-slate-500 hover:text-slate-900 transition-colors font-bold inline-flex items-center gap-1.5 py-1 px-3 rounded-md hover:bg-slate-100/60"
               >
-                ← Back to homepage
+                <span>←</span> Back to homepage
               </Link>
             </div>
           </form>

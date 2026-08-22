@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConfirmAction } from "@/components/ui/ConfirmAction";
-import { KeyRound, Settings2, Trash2, UserCheck, UserX, X } from "lucide-react";
+import { Filter, KeyRound, Settings2, ShieldCheck, Trash2, UserCheck, UserPlus, Users, UserX, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Field, Input, PasswordInput, Select } from "@/components/ui/Form";
@@ -136,7 +136,6 @@ const PERMISSION_GROUPS = [
   {
     title: "Business",
     permissions: [
-      [PERMISSIONS.REPORTS_VIEW, "Reports"],
       [PERMISSIONS.STAFF_VIEW, "View Staff"],
       [PERMISSIONS.STAFF_MANAGE, "Manage Staff"],
       [PERMISSIONS.STAFF_BRANCH_ASSIGN, "Assign Staff Branch"],
@@ -508,6 +507,11 @@ export function StaffManagement() {
   const queryClient = useQueryClient();
   const toast = useToast();
   const { user, hasPermission } = useAuth();
+
+  // Active Action Modal: null | 'create' | 'permissions' | 'password'
+  const [activeModal, setActiveModal] = useState(null);
+  const [roleFilter, setRoleFilter] = useState("ALL"); // ALL, ADMIN, TECHNICIAN
+
   const [selectedStaffId, setSelectedStaffId] = useState("");
   const [permissionStaffId, setPermissionStaffId] = useState("");
   const [createRole, setCreateRole] = useState("TECHNICIAN");
@@ -515,7 +519,6 @@ export function StaffManagement() {
   const [editPermissions, setEditPermissions] = useState([]);
   const [editAccessScope, setEditAccessScope] = useState(normalizeAccessScope());
   const [createPermissionEditorOpen, setCreatePermissionEditorOpen] = useState(false);
-  const [editPermissionEditorOpen, setEditPermissionEditorOpen] = useState(false);
 
   const canAssignBranch = hasPermission(PERMISSIONS.STAFF_BRANCH_ASSIGN);
   const canCreateBranchAdmin = canAssignBranch;
@@ -576,6 +579,7 @@ export function StaffManagement() {
     },
     onSuccess: ({ response, permissionError }) => {
       refreshStaff();
+      setActiveModal(null);
       if (permissionError) {
         const staffId = response?.data?.staff?.id;
         if (staffId) setPermissionStaffId(staffId);
@@ -594,25 +598,27 @@ export function StaffManagement() {
     mutationFn: ({ id, action }) => (action === "enable" ? staffApi.enable(id) : staffApi.disable(id)),
     onSuccess: () => {
       refreshStaff();
-      toast.success(`${staffLabel} status updated.`);
+      toast.success(`Staff status updated.`);
     },
-    onError: (error) => toast.error(error?.response?.data?.message || `Unable to update ${staffLabel.toLowerCase()}.`),
+    onError: (error) => toast.error(error?.response?.data?.message || `Unable to update staff.`),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => staffApi.delete(id),
     onSuccess: () => {
       refreshStaff();
-      toast.success(`${staffLabel} deleted successfully.`);
+      toast.success(`Staff deleted successfully.`);
     },
-    onError: (error) => toast.error(error?.response?.data?.message || `Unable to delete ${staffLabel.toLowerCase()}.`),
+    onError: (error) => toast.error(error?.response?.data?.message || `Unable to delete staff.`),
   });
 
   const passwordMutation = useMutation({
     mutationFn: ({ id, password }) => staffApi.resetPassword(id, { password }),
     onSuccess: () => {
       refreshStaff();
-      toast.success(`${staffLabel} password reset successfully.`);
+      setActiveModal(null);
+      setSelectedStaffId("");
+      toast.success(`Staff password reset successfully.`);
     },
     onError: (error) => toast.error(error?.response?.data?.message || "Unable to reset password."),
   });
@@ -623,13 +629,21 @@ export function StaffManagement() {
       queryClient.setQueryData(["staff-permissions", variables.staffId], response);
       queryClient.invalidateQueries({ queryKey: ["staff-permissions", variables.staffId] });
       refreshStaff();
-      setEditPermissionEditorOpen(false);
+      setActiveModal(null);
       toast.success("Staff permissions saved successfully.");
     },
     onError: (error) => toast.errorFromApi(error, "Unable to save staff permissions."),
   });
 
   const managedStaff = useMemo(() => staffQuery.data?.data?.staff || [], [staffQuery.data]);
+
+  // Role Filtering logic
+  const filteredStaff = useMemo(() => {
+    if (roleFilter === "ALL") return managedStaff;
+    if (roleFilter === "ADMIN") return managedStaff.filter((s) => s.role === "ADMIN" || s.role === "BRANCH_ADMIN");
+    return managedStaff.filter((s) => s.role === roleFilter);
+  }, [managedStaff, roleFilter]);
+
   const branches = useMemo(() => branchesQuery.data?.data?.branches || [], [branchesQuery.data]);
   const activeBranches = useMemo(() => branches.filter((branch) => branch.status === "ACTIVE"), [branches]);
   const currentBranch = useMemo(
@@ -663,99 +677,210 @@ export function StaffManagement() {
   }, [permissionSnapshot]);
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
-        title={staffLabelPlural}
-        description={`Manage ${staffLabelPlural.toLowerCase()}, review role templates, and prepare permission overrides without changing staff roles.`}
+        title="Staff Management"
+        description="Create staff members, update role permissions, reset passwords, and manage branch staff history."
       />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_460px]">
-        <Card>
-          <CardHeader>
-            <CardTitle>{staffLabelPlural}</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <QueryState
-              isLoading={staffQuery.isLoading}
-              error={staffQuery.error}
-              isEmpty={managedStaff.length === 0}
-              emptyTitle={`No ${staffLabelPlural.toLowerCase()} yet`}
-              emptyDescription={`Create a ${staffLabel.toLowerCase()} from the guided form on this screen.`}
-              onRetry={staffQuery.refetch}
+
+      {/* TOP HORIZONTAL ACTION BUTTONS */}
+      <div className="flex flex-wrap items-center gap-2.5">
+        <Button
+          type="button"
+          size="sm"
+          className="h-10 px-4 text-xs font-bold gap-2 bg-[#1769aa] text-white hover:bg-[#125388] shadow-sm"
+          onClick={() => setActiveModal("create")}
+        >
+          <UserPlus className="h-4 w-4" />
+          Create Staff
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-10 px-4 text-xs font-semibold gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
+          onClick={() => setActiveModal("permissions")}
+        >
+          <ShieldCheck className="h-4 w-4 text-blue-600" />
+          Edit Staff Permissions
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="h-10 px-4 text-xs font-semibold gap-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm"
+          onClick={() => setActiveModal("password")}
+        >
+          <KeyRound className="h-4 w-4 text-amber-600" />
+          Reset Staff Password
+        </Button>
+      </div>
+
+      {/* STAFF HISTORY & DIRECTORY CARD */}
+      <Card className="border border-slate-200/80 shadow-sm">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg font-bold text-slate-900">
+              <Users className="h-5 w-5 text-[#1769aa]" />
+              Staff History & Directory
+            </CardTitle>
+            <p className="mt-1 text-xs text-slate-500">
+              Total {managedStaff.length} staff member{managedStaff.length === 1 ? "" : "s"} registered
+            </p>
+          </div>
+
+          {/* ROLE FILTER DROPDOWN */}
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-slate-400" />
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Filter:</span>
+            <Select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="h-9 text-xs font-semibold w-40 bg-slate-50 border-slate-200"
             >
-              <Table>
-                <thead>
-                  <tr>
-                    <Th>Name</Th>
-                    <Th>Email</Th>
-                    <Th>Role</Th>
-                    {canAssignBranch && <Th>Branch</Th>}
-                    <Th>Phone</Th>
-                    <Th>Status</Th>
-                    <Th>Action</Th>
+              <option value="ALL">All Roles ({managedStaff.length})</option>
+              {canCreateBranchAdmin && (
+                <option value="ADMIN">
+                  Admin ({managedStaff.filter((s) => s.role === "ADMIN" || s.role === "BRANCH_ADMIN").length})
+                </option>
+              )}
+              <option value="TECHNICIAN">
+                Technician ({managedStaff.filter((s) => s.role === "TECHNICIAN").length})
+              </option>
+            </Select>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <QueryState
+            isLoading={staffQuery.isLoading}
+            error={staffQuery.error}
+            isEmpty={filteredStaff.length === 0}
+            emptyTitle={roleFilter === "ALL" ? "No staff members found" : `No ${roleFilter.toLowerCase()}s found`}
+            emptyDescription={
+              roleFilter === "ALL"
+                ? "Click 'Create Staff' at the top to add your first staff member."
+                : "No staff matching the selected role filter."
+            }
+            onRetry={staffQuery.refetch}
+          >
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Name</Th>
+                  <Th>Email</Th>
+                  <Th>Role</Th>
+                  {canAssignBranch && <Th>Branch</Th>}
+                  <Th>Phone</Th>
+                  <Th>Status</Th>
+                  <Th className="text-right">Action</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStaff.map((staff) => (
+                  <tr key={staff.id} className="hover:bg-slate-50/70 transition-colors">
+                    <Td className="font-bold text-slate-900">{staff.fullName}</Td>
+                    <Td className="text-slate-600">{staff.email}</Td>
+                    <Td>
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold",
+                          staff.role === "OWNER"
+                            ? "bg-purple-100 text-purple-700"
+                            : staff.role === "ADMIN" || staff.role === "BRANCH_ADMIN"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-teal-100 text-teal-700"
+                        )}
+                      >
+                        {ROLE_LABELS[staff.role] || staff.role}
+                      </span>
+                    </Td>
+                    {canAssignBranch && <Td className="text-slate-600">{staff.branch?.name || "Not assigned"}</Td>}
+                    <Td className="text-slate-600">{staff.phone || "Not set"}</Td>
+                    <Td>
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold",
+                          staff.isActive ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
+                        )}
+                      >
+                        {staff.isActive ? "Active" : "Disabled"}
+                      </span>
+                    </Td>
+                    <Td className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="h-8 text-xs gap-1"
+                          onClick={() => {
+                            setPermissionStaffId(staff.id);
+                            setActiveModal("permissions");
+                          }}
+                        >
+                          <Settings2 className="h-3.5 w-3.5" />
+                          Permissions
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant={staff.isActive ? "secondary" : "primary"}
+                          className="h-8 text-xs gap-1"
+                          disabled={statusMutation.isPending}
+                          onClick={() =>
+                            statusMutation.mutate({
+                              id: staff.id,
+                              action: staff.isActive ? "disable" : "enable",
+                            })
+                          }
+                        >
+                          {staff.isActive ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+                          {staff.isActive ? "Disable" : "Enable"}
+                        </Button>
+                        <ConfirmAction
+                          title="Delete staff member?"
+                          description="Are you sure you want to delete this staff member? This action cannot be undone."
+                          confirmLabel="Delete"
+                          variant="danger"
+                          disabled={deleteMutation.isPending}
+                          onConfirm={() => deleteMutation.mutate(staff.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </ConfirmAction>
+                      </div>
+                    </Td>
                   </tr>
-                </thead>
-                <tbody>
-                  {managedStaff.map((staff) => (
-                    <tr key={staff.id}>
-                      <Td className="font-semibold">{staff.fullName}</Td>
-                      <Td>{staff.email}</Td>
-                      <Td>{ROLE_LABELS[staff.role] || staff.role}</Td>
-                      {canAssignBranch && <Td>{staff.branch?.name || "Not assigned"}</Td>}
-                      <Td>{staff.phone || "Not set"}</Td>
-                      <Td>{staff.isActive ? "Active" : "Disabled"}</Td>
-                      <Td>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => {
-                              setPermissionStaffId(staff.id);
-                              setEditPermissionEditorOpen(true);
-                            }}
-                          >
-                            <Settings2 className="h-4 w-4" />
-                            Permissions
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={staff.isActive ? "danger" : "secondary"}
-                            disabled={statusMutation.isPending}
-                            onClick={() =>
-                              statusMutation.mutate({
-                                id: staff.id,
-                                action: staff.isActive ? "disable" : "enable",
-                              })
-                            }
-                          >
-                            {staff.isActive ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                            {staff.isActive ? "Disable" : "Enable"}
-                          </Button>
-                          <ConfirmAction
-                            title={`Delete ${staffLabel.toLowerCase()}?`}
-                            description={`Are you sure you want to delete this ${staffLabel.toLowerCase()}? This action cannot be undone.`}
-                            confirmLabel="Delete"
-                            variant="danger"
-                            disabled={deleteMutation.isPending}
-                            onConfirm={() => deleteMutation.mutate(staff.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            Delete
-                          </ConfirmAction>
-                        </div>
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </Table>
-            </QueryState>
-          </CardContent>
-        </Card>
-        <div className="space-y-5">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Staff</CardTitle>
+                ))}
+              </tbody>
+            </Table>
+          </QueryState>
+        </CardContent>
+      </Card>
+
+      {/* 1. CREATE STAFF MODAL */}
+      {activeModal === "create" && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/50 p-4 grid place-items-center overflow-y-auto">
+          <Card className="w-full max-w-xl border border-white/80 bg-white shadow-2xl rounded-2xl overflow-hidden my-8">
+            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <UserPlus className="h-5 w-5 text-[#1769aa]" />
+                  Create Staff Member
+                </CardTitle>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Add a new {staffLabel.toLowerCase()} to your workspace
+                </p>
+              </div>
+              <button
+                type="button"
+                className="h-8 w-8 rounded-lg border border-slate-200 grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                onClick={() => setActiveModal(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6 space-y-4">
               <form
                 className="space-y-4"
                 onSubmit={async (event) => {
@@ -776,7 +901,6 @@ export function StaffManagement() {
                       },
                     });
                     if (result.permissionError) return;
-                    event.currentTarget.reset();
                     setCreateRole(roleOptions[0] || "TECHNICIAN");
                     setCreatePermissions(getTemplatePermissions(roleOptions[0] || "TECHNICIAN"));
                   } catch {
@@ -784,51 +908,50 @@ export function StaffManagement() {
                   }
                 }}
               >
-                <div className="rounded-lg border border-[var(--border)] p-3">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">Basic Details</p>
-                  <div className="space-y-3">
-                    <Field label="Name"><Input name="fullName" required /></Field>
-                    <Field label="Email"><Input name="email" type="email" required /></Field>
-                    <Field label="Phone"><Input name="phone" autoComplete="tel" /></Field>
-                    <Field label="Password"><PasswordInput name="password" minLength={8} required /></Field>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Basic Details</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Full Name"><Input name="fullName" placeholder="John Doe" required /></Field>
+                    <Field label="Email Address"><Input name="email" type="email" placeholder="john@shop.com" required /></Field>
+                    <Field label="Phone Number"><Input name="phone" autoComplete="tel" placeholder="10-digit number" /></Field>
+                    <Field label="Password"><PasswordInput name="password" minLength={8} placeholder="Min 8 chars" required /></Field>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-[var(--border)] p-3">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">Branch</p>
-                  {!canAssignBranch ? (
-                    <Field label="Assigned Branch">
-                      <Input readOnly disabled value={currentBranch?.name || "My Branch"} />
-                      <input type="hidden" name="branchId" value={user?.branchId || ""} />
-                    </Field>
-                  ) : (
-                    <Field label="Select Branch">
-                      <Select name="branchId" required disabled={branchesQuery.isLoading || activeBranches.length === 0}>
-                        <option value="">Select branch</option>
-                        {activeBranches.map((branch) => (
-                          <option key={branch.id} value={branch.id}>{branch.name}</option>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3.5 space-y-3">
+                  <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">Branch & Role</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {!canAssignBranch ? (
+                      <Field label="Assigned Branch">
+                        <Input readOnly disabled value={currentBranch?.name || "My Branch"} />
+                        <input type="hidden" name="branchId" value={user?.branchId || ""} />
+                      </Field>
+                    ) : (
+                      <Field label="Select Branch">
+                        <Select name="branchId" required disabled={branchesQuery.isLoading || activeBranches.length === 0}>
+                          <option value="">Select branch</option>
+                          {activeBranches.map((branch) => (
+                            <option key={branch.id} value={branch.id}>{branch.name}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                    )}
+
+                    <Field label="Select Role">
+                      <Select
+                        value={createRole}
+                        onChange={(event) => {
+                          const role = event.target.value;
+                          setCreateRole(role);
+                          setCreatePermissions(getTemplatePermissions(role));
+                        }}
+                      >
+                        {roleOptions.map((role) => (
+                          <option key={role} value={role}>{ROLE_LABELS[role]}</option>
                         ))}
                       </Select>
                     </Field>
-                  )}
-                </div>
-
-                <div className="rounded-lg border border-[var(--border)] p-3">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-[var(--muted)]">Role Template</p>
-                  <Field label="Select Role">
-                    <Select
-                      value={createRole}
-                      onChange={(event) => {
-                        const role = event.target.value;
-                        setCreateRole(role);
-                        setCreatePermissions(getTemplatePermissions(role));
-                      }}
-                    >
-                      {roleOptions.map((role) => (
-                        <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-                      ))}
-                    </Select>
-                  </Field>
+                  </div>
                 </div>
 
                 <PermissionSummaryCard
@@ -843,30 +966,53 @@ export function StaffManagement() {
                   }
                 />
 
-                <Button className="w-full" disabled={createMutation.isPending}>
-                  Create Staff
-                </Button>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <Button type="button" variant="secondary" onClick={() => setActiveModal(null)}>
+                    Cancel
+                  </Button>
+                  <Button disabled={createMutation.isPending}>
+                    {createMutation.isPending ? "Creating..." : "Create Staff Member"}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
+        </div>
+      )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Edit Staff Permissions</CardTitle>
+      {/* 2. EDIT STAFF PERMISSIONS MODAL */}
+      {activeModal === "permissions" && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/50 p-4 grid place-items-center overflow-y-auto">
+          <Card className="w-full max-w-xl border border-white/80 bg-white shadow-2xl rounded-2xl overflow-hidden my-8">
+            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-blue-600" />
+                  Edit Staff Permissions
+                </CardTitle>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Select a staff member to inspect and update permissions
+                </p>
+              </div>
+              <button
+                type="button"
+                className="h-8 w-8 rounded-lg border border-slate-200 grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                onClick={() => setActiveModal(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <Field label="Staff Member">
+
+            <CardContent className="p-6 space-y-4">
+              <Field label="Select Staff Member">
                 <Select
                   value={permissionStaffId}
-                  onChange={(event) => {
-                    setPermissionStaffId(event.target.value);
-                    setEditPermissionEditorOpen(Boolean(event.target.value));
-                  }}
+                  onChange={(event) => setPermissionStaffId(event.target.value)}
                 >
-                  <option value="">Select staff</option>
+                  <option value="">-- Choose Staff Member --</option>
                   {managedStaff.map((staff) => (
                     <option key={staff.id} value={staff.id}>
-                      {staff.fullName} · {ROLE_LABELS[staff.role] || staff.role}
+                      {staff.fullName} · {ROLE_LABELS[staff.role] || staff.role} ({staff.email})
                     </option>
                   ))}
                 </Select>
@@ -880,11 +1026,11 @@ export function StaffManagement() {
                   onRetry={permissionQuery.refetch}
                 >
                   {permissionSnapshot ? (
-                    <>
-                      <div className="rounded-md border border-[var(--border)] bg-white p-3 text-sm">
-                        <p className="font-semibold text-[var(--foreground)]">{permissionSnapshot.staff.fullName}</p>
-                        <p className="text-xs text-[var(--muted)]">
-                          Role remains {ROLE_LABELS[editRoleTemplate] || editRoleTemplate}. Permission edits save as overrides only.
+                    <div className="space-y-4 pt-2">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5 text-xs space-y-1">
+                        <p className="font-bold text-slate-900 text-sm">{permissionSnapshot.staff.fullName}</p>
+                        <p className="text-slate-500">
+                          Role: <span className="font-semibold text-slate-700">{ROLE_LABELS[editRoleTemplate] || editRoleTemplate}</span>
                         </p>
                       </div>
                       <PermissionSummaryCard
@@ -892,27 +1038,59 @@ export function StaffManagement() {
                         role={editRoleTemplate}
                         permissions={editPermissions}
                         defaultPermissions={editDefaultPermissions}
-                        onOpen={() => setEditPermissionEditorOpen(true)}
+                        onOpen={() => setCreatePermissionEditorOpen(true)}
                         description="Loaded from backend. Open editor to update permissions and access scope."
                       />
-                    </>
+                    </div>
                   ) : null}
                 </QueryState>
               ) : (
-                <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-4 text-sm text-[var(--muted)]">
-                  Select a staff member to load their backend permission snapshot.
-                </p>
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/50 p-8 text-center text-xs text-slate-400">
+                  Select a staff member from the dropdown above to load their backend permissions.
+                </div>
               )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button type="button" variant="secondary" onClick={() => setActiveModal(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={!permissionStaff || !permissionSnapshot}
+                  onClick={() => setCreatePermissionEditorOpen(true)}
+                >
+                  Open Permission Editor
+                </Button>
+              </div>
             </CardContent>
           </Card>
+        </div>
+      )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Reset Staff Password</CardTitle>
+      {/* 3. RESET STAFF PASSWORD MODAL */}
+      {activeModal === "password" && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/50 p-4 grid place-items-center overflow-y-auto">
+          <Card className="w-full max-w-md border border-white/80 bg-white shadow-2xl rounded-2xl overflow-hidden my-8">
+            <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-black text-slate-900 flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-amber-600" />
+                  Reset Staff Password
+                </CardTitle>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Update password for an existing staff member
+                </p>
+              </div>
+              <button
+                type="button"
+                className="h-8 w-8 rounded-lg border border-slate-200 grid place-items-center text-slate-400 hover:text-slate-700 hover:bg-slate-50"
+                onClick={() => setActiveModal(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               <form
-                className="space-y-3"
+                className="space-y-4"
                 onSubmit={async (event) => {
                   event.preventDefault();
                   const form = new FormData(event.currentTarget);
@@ -921,80 +1099,78 @@ export function StaffManagement() {
                       id: selectedStaffId,
                       password: String(form.get("password") || ""),
                     });
-                    event.currentTarget.reset();
-                    setSelectedStaffId("");
                   } catch {
                     // Error toast is handled by the mutation.
                   }
                 }}
               >
-                <Field label="Staff Member">
+                <Field label="Select Staff Member">
                   <Select
                     required
                     value={selectedStaffId}
                     onChange={(event) => setSelectedStaffId(event.target.value)}
                   >
-                    <option value="">Select staff</option>
+                    <option value="">-- Select Staff Member --</option>
                     {managedStaff.map((staff) => (
                       <option key={staff.id} value={staff.id}>
-                        {staff.fullName} · {staff.email}
+                        {staff.fullName} ({staff.email})
                       </option>
                     ))}
                   </Select>
                 </Field>
-                <Field label="New Password"><PasswordInput name="password" minLength={8} required /></Field>
-                <Button className="w-full" disabled={!selectedStaffId || passwordMutation.isPending}>
-                  <KeyRound className="h-4 w-4" />
-                  Reset Password
-                </Button>
+
+                <Field label="New Password">
+                  <PasswordInput name="password" minLength={8} placeholder="Min 8 characters" required />
+                </Field>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <Button type="button" variant="secondary" onClick={() => setActiveModal(null)}>
+                    Cancel
+                  </Button>
+                  <Button disabled={!selectedStaffId || passwordMutation.isPending}>
+                    {passwordMutation.isPending ? "Resetting..." : "Reset Password"}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
         </div>
-      </div>
+      )}
 
+      {/* FULL PERMISSION EDITOR DRAWER */}
       <PermissionEditorModal
         open={createPermissionEditorOpen}
-        title="Review Permissions"
-        subtitle="Set permissions for the selected role template before creating staff."
-        role={createRole}
-        permissions={createPermissions}
-        defaultPermissions={getTemplatePermissions(createRole)}
-        onPermissionsChange={setCreatePermissions}
-        onClose={() => setCreatePermissionEditorOpen(false)}
-        onSave={() => setCreatePermissionEditorOpen(false)}
-        saveLabel="Apply Permissions"
-      />
-
-      <PermissionEditorModal
-        open={editPermissionEditorOpen}
-        title="Edit Staff Permissions"
-        subtitle={permissionSnapshot ? `${permissionSnapshot.staff.fullName} · ${ROLE_LABELS[editRoleTemplate] || editRoleTemplate}` : "Loading backend permission snapshot"}
-        role={editRoleTemplate}
-        permissions={editPermissions}
-        defaultPermissions={editDefaultPermissions}
-        onPermissionsChange={setEditPermissions}
-        accessScope={editAccessScope}
-        defaultAccessScope={editDefaultScope}
+        title={permissionStaff ? `Edit Permissions: ${permissionStaff.fullName}` : "Review Permissions"}
+        subtitle={permissionStaff ? `${permissionStaff.email} · ${ROLE_LABELS[editRoleTemplate] || editRoleTemplate}` : "Set permissions for the selected role template."}
+        role={permissionStaff ? editRoleTemplate : createRole}
+        permissions={permissionStaff ? editPermissions : createPermissions}
+        defaultPermissions={permissionStaff ? editDefaultPermissions : getTemplatePermissions(createRole)}
+        onPermissionsChange={permissionStaff ? setEditPermissions : setCreatePermissions}
+        accessScope={permissionStaff ? editAccessScope : undefined}
+        defaultAccessScope={permissionStaff ? editDefaultScope : undefined}
         branches={activeBranches}
-        onAccessScopeChange={setEditAccessScope}
-        showAccessScope={Boolean(permissionSnapshot)}
-        isLoading={permissionQuery.isLoading}
-        error={permissionQuery.error}
-        onRetry={permissionQuery.refetch}
-        onClose={() => setEditPermissionEditorOpen(false)}
-        saving={updatePermissionMutation.isPending}
-        saveDisabled={!permissionSnapshot || (!editOverridesChanged && !editScopeChanged)}
-        saveLabel="Save Changes"
-        onSave={() =>
-          updatePermissionMutation.mutate({
-            staffId: permissionStaffId,
-            payload: {
-              overrides: buildOverridePayload(editPermissions, editDefaultPermissions),
-              accessScope: editAccessScope,
-            },
-          })
-        }
+        onAccessScopeChange={permissionStaff ? setEditAccessScope : undefined}
+        showAccessScope={Boolean(permissionStaff && permissionSnapshot)}
+        isLoading={permissionStaff ? permissionQuery.isLoading : false}
+        error={permissionStaff ? permissionQuery.error : null}
+        onRetry={permissionStaff ? permissionQuery.refetch : undefined}
+        onClose={() => setCreatePermissionEditorOpen(false)}
+        saving={permissionStaff ? updatePermissionMutation.isPending : false}
+        saveDisabled={permissionStaff ? !permissionSnapshot || (!editOverridesChanged && !editScopeChanged) : false}
+        saveLabel={permissionStaff ? "Save Changes" : "Apply Permissions"}
+        onSave={() => {
+          if (permissionStaff) {
+            updatePermissionMutation.mutate({
+              staffId: permissionStaffId,
+              payload: {
+                overrides: buildOverridePayload(editPermissions, editDefaultPermissions),
+                accessScope: editAccessScope,
+              },
+            });
+          } else {
+            setCreatePermissionEditorOpen(false);
+          }
+        }}
       />
     </div>
   );

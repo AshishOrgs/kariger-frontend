@@ -55,9 +55,11 @@ export function LegalPage({ type }) {
       <header className="border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] font-black text-white shadow-md shadow-blue-100">
-              K
-            </div>
+            <img
+              src="/logo.png?v=3"
+              alt="Kariger logo"
+              className="h-9 w-9 rounded-xl border border-slate-200 bg-white object-contain p-0.5 shadow-md shadow-blue-100"
+            />
             <span className="text-lg font-black tracking-tight bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] bg-clip-text text-transparent">
               KARIGER
             </span>

@@ -46,6 +46,7 @@ export function ProtectedRoute() {
   if (
     !isPlatformUser &&
     !isServiceActive &&
+    subscriptionStatus !== "PENDING" &&
     !(canManageSubscription && canOwnerUsePendingPath(location.pathname))
   ) {
     return (

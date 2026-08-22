@@ -14,6 +14,10 @@ function normalizeRole(role) {
 
 function isServiceActive(user) {
   if (!user || hasAnyPermission(user.permissions, [PERMISSIONS.SUPER_ADMIN_MANAGE])) return true;
+  const status = user.business?.subscription?.status;
+  const effectiveStatus = user.business?.subscription?.effectiveStatus;
+  const activeStatuses = ["ACTIVE", "TRIALING", "PENDING", "DONE", "APPROVED", "PAID"];
+  if (activeStatuses.includes(status) || activeStatuses.includes(effectiveStatus)) return true;
   return Boolean(user.business?.subscription?.isServiceActive);
 }
 
@@ -141,7 +145,7 @@ export function AuthProvider({ children }) {
           : needsSubscriptionPage(user)
           ? "/subscription"
           : hasAnyPermission(permissions, [PERMISSIONS.REPAIR_INTAKE, PERMISSIONS.SUBSCRIPTION_MANAGE])
-          ? "/branch/portal"
+          ? "/dashboard"
           : "/dashboard",
         { replace: true }
       );

@@ -49,7 +49,7 @@ export function LandingPage() {
       ) {
         navigate("/plans", { replace: true });
       } else if (hasPermission(PERMISSIONS.REPAIR_INTAKE, PERMISSIONS.SUBSCRIPTION_MANAGE)) {
-        navigate("/branch/portal", { replace: true });
+        navigate("/dashboard", { replace: true });
       } else {
         navigate("/dashboard", { replace: true });
       }
@@ -554,9 +554,11 @@ export function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-slate-200/60 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link to="/" className="flex items-center gap-2">
-            <div className="h-9 w-9 rounded-xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] grid place-items-center text-white font-black shadow-md shadow-blue-100">
-              K
-            </div>
+            <img
+              src="/logo.png?v=3"
+              alt="Kariger logo"
+              className="h-9 w-9 rounded-xl border border-slate-200 bg-white object-contain p-0.5 shadow-md shadow-blue-100"
+            />
             <span className="text-lg font-black tracking-tight bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] bg-clip-text text-transparent">
               KARIGER
             </span>
@@ -591,9 +593,9 @@ export function LandingPage() {
 
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
-              <Link to="/branch/portal">
+              <Link to="/dashboard">
                 <Button className="h-10 text-xs font-bold gap-1 shadow-md shadow-blue-200">
-                  Go to Portal
+                  Go to Dashboard
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </Link>
@@ -683,7 +685,7 @@ export function LandingPage() {
             </p>
 
             <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
-              <Link to="/login" className="w-full sm:w-auto">
+              <Link to={isAuthenticated ? (user?.business?.subscription?.status === "NOT_SELECTED" ? "/plans" : "/dashboard") : "/login"} className="w-full sm:w-auto">
                 <Button className="hero-button h-12 w-full rounded-xl border-[#2563EB] bg-[#2563EB] px-6 text-sm font-extrabold shadow-xl shadow-blue-500/20 hover:-translate-y-0.5 hover:scale-[1.02] hover:brightness-100 sm:w-auto">
                   Start Free Trial
                   <ArrowRight className="h-4 w-4" />
@@ -1340,7 +1342,7 @@ export function LandingPage() {
                   </div>
 
                   <div className="mt-auto pt-8">
-                    <Link to="/login">
+                    <Link to={isAuthenticated ? (user?.business?.subscription?.status === "NOT_SELECTED" ? "/plans" : "/dashboard") : "/login"}>
                       <Button
                         variant={plan.popular ? "primary" : "secondary"}
                         className={`h-12 w-full rounded-2xl text-sm font-black transition-all duration-300 active:translate-y-0 active:scale-[0.99] ${

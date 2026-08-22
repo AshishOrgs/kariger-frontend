@@ -4,69 +4,39 @@ import {
   ArrowRight,
   BadgePlus,
   Boxes,
-  BriefcaseBusiness,
-  CheckCircle2,
   ClipboardList,
+  Clock3,
   CreditCard,
   GitBranch,
   Handshake,
   PackageSearch,
-  ShieldCheck,
   UserRoundCog,
   Wrench,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { analyticsApi, assignmentsApi, billingApi, inventoryApi, repairApi } from "@/services/modules";
+import { billingApi, inventoryApi, repairApi } from "@/services/modules";
 import { useAuth } from "@/contexts/AuthContext";
 import { PERMISSIONS } from "@/utils/permissions";
-import { cn, formatCurrency, formatDate } from "@/utils/cn";
-import { ticketLabel } from "@/utils/ticketLabel";
-
-const activeRepairStatuses = [
-  "RECEIVED",
-  "DIAGNOSING",
-  "ESTIMATE_PENDING",
-  "APPROVED",
-  "IN_REPAIR",
-  "WAITING_PARTS",
-  "WAITING_APPROVAL",
-  "READY_FOR_REVIEW",
-  "SENT_TO_VENDOR",
-];
-
-const billingStatuses = ["READY_FOR_REVIEW", "READY_FOR_DELIVERY"];
-
-const dashboardWidgetPermissions = {
-  todayWorkSummary: [PERMISSIONS.REPAIR_WORK, PERMISSIONS.REPAIR_JOBS_VIEW],
-  pendingRepairsSummary: [PERMISSIONS.REPAIR_JOBS_VIEW],
-  billingQueueSummary: [PERMISSIONS.BILLING_VIEW, PERMISSIONS.BILLING_CREATE, PERMISSIONS.PAYMENT_COLLECT],
-  inventoryAlertsSummary: [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE, PERMISSIONS.INVENTORY_CONSUME],
-  todayWorkPanel: [PERMISSIONS.REPAIR_WORK, PERMISSIONS.REPAIR_JOBS_VIEW],
-  pendingRepairsPanel: [PERMISSIONS.REPAIR_JOBS_VIEW],
-  billingQueuePanel: [PERMISSIONS.BILLING_VIEW, PERMISSIONS.BILLING_CREATE, PERMISSIONS.PAYMENT_COLLECT],
-  inventoryAlertsPanel: [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE, PERMISSIONS.INVENTORY_CONSUME],
-  recentActivityPanel: [
-    PERMISSIONS.REPORTS_VIEW,
-    PERMISSIONS.REPAIR_JOBS_VIEW,
-    PERMISSIONS.REPAIR_WORK,
-    PERMISSIONS.BILLING_VIEW,
-    PERMISSIONS.BILLING_CREATE,
-    PERMISSIONS.PAYMENT_COLLECT,
-  ],
-};
+import { cn } from "@/utils/cn";
 
 const quickActions = [
   {
-    label: "Create Repair",
+    label: "Repair Intake",
     detail: "Start customer intake",
     path: "/repair/new",
     icon: BadgePlus,
     permissions: [PERMISSIONS.REPAIR_INTAKE],
     tone: "bg-teal-50 text-teal-700",
+  },
+  {
+    label: "Technician Work",
+    detail: "Continue assigned work",
+    path: "/technician/repairs",
+    icon: Wrench,
+    permissions: [PERMISSIONS.REPAIR_WORK],
+    tone: "bg-emerald-50 text-emerald-700",
   },
   {
     label: "Repair Jobs",
@@ -77,28 +47,12 @@ const quickActions = [
     tone: "bg-blue-50 text-blue-700",
   },
   {
-    label: "Repair Work",
-    detail: "Continue assigned work",
-    path: "/technician/repairs",
-    icon: Wrench,
-    permissions: [PERMISSIONS.REPAIR_WORK],
-    tone: "bg-emerald-50 text-emerald-700",
-  },
-  {
-    label: "Estimate",
-    detail: "Prepare or review quotes",
-    path: "/repair/estimates",
-    icon: ShieldCheck,
-    permissions: [PERMISSIONS.REPAIR_ESTIMATE, PERMISSIONS.ESTIMATE_CREATE],
-    tone: "bg-indigo-50 text-indigo-700",
-  },
-  {
-    label: "Assign",
-    detail: "Move work to staff",
-    path: "/assignments",
-    icon: UserRoundCog,
-    permissions: [PERMISSIONS.REPAIR_ASSIGN],
-    tone: "bg-violet-50 text-violet-700",
+    label: "Inventory",
+    detail: "Parts and stock",
+    path: "/inventory",
+    icon: Boxes,
+    permissions: [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE, PERMISSIONS.INVENTORY_CONSUME],
+    tone: "bg-cyan-50 text-cyan-700",
   },
   {
     label: "Billing",
@@ -109,28 +63,12 @@ const quickActions = [
     tone: "bg-amber-50 text-amber-700",
   },
   {
-    label: "Inventory",
-    detail: "Parts and stock",
-    path: "/inventory",
-    icon: Boxes,
-    permissions: [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE, PERMISSIONS.INVENTORY_CONSUME],
-    tone: "bg-cyan-50 text-cyan-700",
-  },
-  {
     label: "Handover",
     detail: "Ready delivery queue",
     path: "/handover",
     icon: Handshake,
     permissions: [PERMISSIONS.HANDOVER_VIEW, PERMISSIONS.HANDOVER_MANAGE],
     tone: "bg-lime-50 text-lime-700",
-  },
-  {
-    label: "Team",
-    detail: "Staff operations",
-    path: "/staff",
-    icon: UserRoundCog,
-    permissions: [PERMISSIONS.STAFF_VIEW, PERMISSIONS.STAFF_MANAGE],
-    tone: "bg-slate-100 text-slate-700",
   },
   {
     label: "Branches",
@@ -140,376 +78,51 @@ const quickActions = [
     permissions: [PERMISSIONS.BRANCH_VIEW, PERMISSIONS.BRANCH_MANAGE],
     tone: "bg-sky-50 text-sky-700",
   },
+  {
+    label: "Staff",
+    detail: "Staff operations",
+    path: "/staff",
+    icon: UserRoundCog,
+    permissions: [PERMISSIONS.STAFF_VIEW, PERMISSIONS.STAFF_MANAGE],
+    tone: "bg-slate-100 text-slate-700",
+  },
 ];
 
-export function Dashboard() {
-  const { user, hasPermission } = useAuth();
-  const canViewRepairQueue = hasPermission(PERMISSIONS.REPAIR_JOBS_VIEW);
-  const canWorkRepairs = hasPermission(PERMISSIONS.REPAIR_WORK);
-  const canUseInventory = hasPermission(PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE, PERMISSIONS.INVENTORY_CONSUME);
-  const canUseBilling = hasPermission(PERMISSIONS.BILLING_VIEW, PERMISSIONS.BILLING_CREATE, PERMISSIONS.PAYMENT_COLLECT);
-  const canViewReports = hasPermission(PERMISSIONS.REPORTS_VIEW);
-  const canShowWidget = (widgetKey) => hasPermission(...dashboardWidgetPermissions[widgetKey]);
-  const showTodayWorkSummary = canShowWidget("todayWorkSummary");
-  const showPendingRepairsSummary = canShowWidget("pendingRepairsSummary");
-  const showBillingQueueSummary = canShowWidget("billingQueueSummary");
-  const showInventoryAlertsSummary = canShowWidget("inventoryAlertsSummary");
-  const showTodayWorkPanel = canShowWidget("todayWorkPanel");
-  const showPendingRepairsPanel = canShowWidget("pendingRepairsPanel");
-  const showBillingQueuePanel = canShowWidget("billingQueuePanel");
-  const showInventoryAlertsPanel = canShowWidget("inventoryAlertsPanel");
-  const showRecentActivityPanel = canShowWidget("recentActivityPanel");
-  const showSummarySection =
-    showTodayWorkSummary ||
-    showPendingRepairsSummary ||
-    showBillingQueueSummary ||
-    showInventoryAlertsSummary;
-  const showWorkSection = showTodayWorkPanel || showPendingRepairsPanel;
-  const showQueueSection =
-    showBillingQueuePanel ||
-    showInventoryAlertsPanel ||
-    showRecentActivityPanel;
-
-  const repairQuery = useQuery({
-    queryKey: ["dashboard", "repair-queue"],
-    queryFn: () => repairApi.list({ page: 1, limit: 30, sort: "updatedAt" }),
-    enabled: canViewRepairQueue,
-  });
-
-  const assignmentQuery = useQuery({
-    queryKey: ["dashboard", "assigned-repairs"],
-    queryFn: () => assignmentsApi.queue({ page: 1, limit: 12, sort: "priority" }),
-    enabled: canWorkRepairs,
-  });
-
-  const inventoryQuery = useQuery({
-    queryKey: ["dashboard", "inventory-alerts"],
-    queryFn: () => inventoryApi.list({ page: 1, limit: 20 }),
-    enabled: canUseInventory,
-  });
-
-  const billingQuery = useQuery({
-    queryKey: ["dashboard", "billing-queue"],
-    queryFn: () => billingApi.invoices({ page: 1, limit: 20 }),
-    enabled: canUseBilling,
-  });
-
-  const analyticsQuery = useQuery({
-    queryKey: ["dashboard", "owner-summary"],
-    queryFn: () => analyticsApi.ownerDashboard(),
-    enabled: canViewReports,
-  });
-
-  const tickets = rowsFrom(repairQuery.data, ["tickets", "repairs", "rows"]);
-  const assignments = rowsFrom(assignmentQuery.data, ["assignments", "tickets", "rows"]);
-  const inventoryItems = rowsFrom(inventoryQuery.data, ["items", "inventoryItems", "products", "rows"]);
-  const invoices = rowsFrom(billingQuery.data, ["invoices", "rows"]);
-  const analytics = analyticsQuery.data?.data || {};
-
-  const assignedTickets = assignments.map((assignment) => assignment.ticket || assignment).filter(Boolean);
-  const todayWork = canWorkRepairs ? assignedTickets : tickets;
-  const pendingRepairs = tickets.filter((ticket) => activeRepairStatuses.includes(ticket.status)).slice(0, 5);
-  const billingQueue = buildBillingQueue({ invoices, tickets }).slice(0, 5);
-  const inventoryAlerts = inventoryItems.filter(isLowStock).slice(0, 5);
-  const recentActivity = buildRecentActivity({ analytics, tickets, invoices, assignedTickets }).slice(0, 6);
-
-  const visibleActions = quickActions.filter((action) => hasPermission(...action.permissions));
-  const pendingCount = pendingRepairs.length;
-  const todayCount = todayWork.length;
-  const billingCount = billingQueue.length;
-  const inventoryAlertCount = inventoryAlerts.length;
-
-  return (
-    <div className="mx-auto flex max-w-[1500px] flex-col gap-5">
-      <PageHeader
-        title="Dashboard"
-        description={`Good ${dayPart()}, ${user?.fullName || "there"}. Here is what needs attention now.`}
-        actions={
-          hasPermission(PERMISSIONS.REPAIR_INTAKE) ? (
-            <Link to="/repair/new">
-              <Button type="button">
-                <BadgePlus className="h-4 w-4" />
-                Create Repair
-              </Button>
-            </Link>
-          ) : null
-        }
-      />
-
-      {showSummarySection ? (
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {showTodayWorkSummary ? (
-            <SummaryCard label="Today's Work" value={todayCount} detail="Jobs needing action" icon={Wrench} tone="bg-blue-50 text-blue-700" />
-          ) : null}
-          {showPendingRepairsSummary ? (
-            <SummaryCard label="Pending Repairs" value={pendingCount} detail="Open repair flow" icon={ClipboardList} tone="bg-emerald-50 text-emerald-700" />
-          ) : null}
-          {showBillingQueueSummary ? (
-            <SummaryCard label="Billing Queue" value={billingCount} detail="Invoice or payment follow-up" icon={CreditCard} tone="bg-amber-50 text-amber-700" />
-          ) : null}
-          {showInventoryAlertsSummary ? (
-            <SummaryCard label="Inventory Alerts" value={inventoryAlertCount} detail="Low or attention stock" icon={PackageSearch} tone="bg-cyan-50 text-cyan-700" />
-          ) : null}
-        </section>
-      ) : null}
-
-      {visibleActions.length ? (
-        <Card className="rounded-2xl border-slate-200 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-          <CardHeader className="border-slate-100">
-            <CardTitle>Quick Actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {visibleActions.map((action) => (
-                <ActionCard key={action.path} action={action} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {showWorkSection ? (
-        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
-          {showTodayWorkPanel ? (
-            <WorkPanel
-              title="Today's Work"
-              items={todayWork.slice(0, 6)}
-              emptyTitle="No work waiting"
-              emptyDescription="New work will appear here as soon as your permissions allow access to repair queues."
-              loading={repairQuery.isLoading || assignmentQuery.isLoading}
-            />
-          ) : null}
-
-          {showPendingRepairsPanel ? (
-            <QueuePanel
-              title="Pending Repairs"
-              icon={ClipboardList}
-              items={pendingRepairs}
-              loading={repairQuery.isLoading}
-              emptyTitle="No pending repairs"
-              emptyDescription="Open repair jobs will appear here."
-              renderItem={(ticket) => <TicketRow key={ticket.id} ticket={ticket} />}
-            />
-          ) : null}
-        </section>
-      ) : null}
-
-      {showQueueSection ? (
-        <section className="grid gap-5 xl:grid-cols-3">
-        {showBillingQueuePanel ? (
-          <QueuePanel
-            title="Billing Queue"
-            icon={CreditCard}
-            items={billingQueue}
-            loading={billingQuery.isLoading || repairQuery.isLoading}
-            emptyTitle="Billing is clear"
-            emptyDescription="Invoices and ready-for-billing repairs will appear here."
-            renderItem={(item) => <BillingRow key={item.id || item.ticketId} item={item} />}
-          />
-        ) : null}
-
-        {showInventoryAlertsPanel ? (
-          <QueuePanel
-            title="Inventory Alerts"
-            icon={Boxes}
-            items={inventoryAlerts}
-            loading={inventoryQuery.isLoading}
-            emptyTitle="Stock looks healthy"
-            emptyDescription="Low stock alerts will appear here."
-            renderItem={(item) => <InventoryRow key={item.id || item.sku} item={item} />}
-          />
-        ) : null}
-
-        {showRecentActivityPanel ? (
-          <QueuePanel
-            title="Recent Activity"
-            icon={BriefcaseBusiness}
-            items={recentActivity}
-            loading={analyticsQuery.isLoading || repairQuery.isLoading || billingQuery.isLoading}
-            emptyTitle="No recent activity"
-            emptyDescription="Recent repairs, invoices, and operational updates will appear here."
-            renderItem={(item) => <ActivityRow key={item.id} item={item} />}
-          />
-        ) : null}
-        </section>
-      ) : null}
-    </div>
-  );
-}
-
-function SummaryCard({ label, value, detail, icon: Icon, tone }) {
-  return (
-    <Card className="rounded-2xl border-slate-200 shadow-[0_14px_35px_rgba(15,23,42,0.05)]">
-      <CardContent className="flex items-center gap-4 p-4">
-        <span className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-2xl", tone)}>
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <p className="text-2xl font-black tracking-normal text-slate-950">{value}</p>
-          <p className="text-sm font-bold text-slate-700">{label}</p>
-          <p className="truncate text-xs text-slate-500">{detail}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ActionCard({ action }) {
-  const Icon = action.icon;
-  return (
-    <Link
-      to={action.path}
-      className="group flex min-h-[104px] flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className={cn("grid h-11 w-11 place-items-center rounded-2xl", action.tone)}>
-          <Icon className="h-5 w-5" />
-        </span>
-        <ArrowRight className="h-4 w-4 text-slate-400 transition group-hover:translate-x-0.5 group-hover:text-[var(--primary)]" />
-      </div>
-      <div>
-        <p className="text-sm font-black text-slate-950">{action.label}</p>
-        <p className="mt-0.5 text-xs text-slate-500">{action.detail}</p>
-      </div>
-    </Link>
-  );
-}
-
-function WorkPanel({ title, items, emptyTitle, emptyDescription, loading }) {
-  return (
-    <Card className="rounded-2xl border-slate-200 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-      <CardHeader className="border-slate-100">
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <SkeletonRows />
-        ) : items.length ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {items.map((ticket) => <TicketCard key={ticket.id} ticket={ticket} />)}
-          </div>
-        ) : (
-          <EmptyState title={emptyTitle} description={emptyDescription} />
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function QueuePanel({ title, icon: Icon, items, loading, emptyTitle, emptyDescription, renderItem }) {
-  return (
-    <Card className="rounded-2xl border-slate-200 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
-      <CardHeader className="flex flex-row items-center justify-between border-slate-100">
-        <CardTitle>{title}</CardTitle>
-        <span className="grid h-9 w-9 place-items-center rounded-2xl bg-slate-100 text-slate-600">
-          <Icon className="h-4 w-4" />
-        </span>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <SkeletonRows />
-        ) : items.length ? (
-          <div className="space-y-3">{items.map(renderItem)}</div>
-        ) : (
-          <EmptyState title={emptyTitle} description={emptyDescription} />
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function TicketCard({ ticket }) {
-  return (
-    <Link to={`/repair/${ticket.id}`} className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 transition hover:border-blue-200 hover:bg-white hover:shadow-md">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-black text-slate-950">{ticketLabel(ticket)}</p>
-          <p className="mt-1 truncate text-xs text-slate-500">{ticket.customer?.fullName || ticket.title || "Repair customer"}</p>
-        </div>
-        <StatusBadge status={ticket.status} />
-      </div>
-      <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-        <span>{ticket.priority || "NORMAL"}</span>
-        <span>{formatDate(ticket.updatedAt || ticket.createdAt)}</span>
-      </div>
-    </Link>
-  );
-}
-
-function TicketRow({ ticket }) {
-  return (
-    <Link to={`/repair/${ticket.id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-sm">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-slate-950">{ticketLabel(ticket)}</p>
-        <p className="truncate text-xs text-slate-500">{ticket.customer?.fullName || ticket.title || "Repair job"}</p>
-      </div>
-      <StatusBadge status={ticket.status} />
-    </Link>
-  );
-}
-
-function BillingRow({ item }) {
-  const label = item.ticket ? ticketLabel(item.ticket) : item.invoiceNumber || item.number || "Invoice";
-  const amount = item.totalAmount || item.amount || item.balanceDue || item.finalInvoiceAmount || 0;
-  const path = item.id && item.invoiceNumber ? `/billing/invoices/${item.id}` : "/billing";
-
-  return (
-    <Link to={path} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-sm">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-slate-950">{label}</p>
-        <p className="truncate text-xs text-slate-500">{item.customer?.fullName || item.ticket?.customer?.fullName || "Billing follow-up"}</p>
-      </div>
-      <p className="shrink-0 text-sm font-black text-slate-900">{formatCurrency(amount)}</p>
-    </Link>
-  );
-}
-
-function InventoryRow({ item }) {
-  const current = item.currentStock ?? item.stock ?? item.quantity ?? 0;
-  const minimum = item.lowStockThreshold ?? item.minimumStock ?? item.reorderLevel ?? 0;
-  return (
-    <Link to={item.id ? `/inventory/${item.id}` : "/inventory"} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 transition hover:border-blue-200 hover:shadow-sm">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-slate-950">{item.name || item.itemName || item.sku || "Inventory item"}</p>
-        <p className="truncate text-xs text-slate-500">Minimum {minimum}</p>
-      </div>
-      <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-black text-amber-700">{current} left</span>
-    </Link>
-  );
-}
-
-function ActivityRow({ item }) {
-  return (
-    <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3">
-      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600">
-        {item.type === "billing" ? <CreditCard className="h-4 w-4" /> : item.type === "repair" ? <Wrench className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-bold text-slate-950">{item.title}</p>
-        <p className="truncate text-xs text-slate-500">{item.detail}</p>
-      </div>
-    </div>
-  );
-}
-
-function SkeletonRows() {
-  return (
-    <div className="space-y-3">
-      {[0, 1, 2].map((item) => (
-        <div key={item} className="h-16 animate-pulse rounded-2xl bg-slate-100" />
-      ))}
-    </div>
-  );
-}
-
-function rowsFrom(response, keys) {
-  const data = response?.data || response || {};
-  for (const key of keys) {
-    const value = data?.[key] || data?.data?.[key];
-    if (Array.isArray(value)) return value;
+function getSubscriptionMeta(subscription) {
+  if (!subscription) return { daysLeft: 30, text: "Active Plan", detail: "Expires soon" };
+  const expiresAt = subscription.expiresAt ? new Date(subscription.expiresAt) : null;
+  const now = new Date();
+  
+  let daysLeft = subscription.daysRemaining;
+  if (expiresAt) {
+    const diffTime = expiresAt.getTime() - now.getTime();
+    daysLeft = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+  } else if (daysLeft === undefined || daysLeft === null) {
+    daysLeft = 30;
   }
+
+  const formattedDate = expiresAt ? expiresAt.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Active";
+
+  return {
+    daysLeft,
+    text: daysLeft > 0 ? `${daysLeft} Days Left` : "Expired Today",
+    detail: `Expires ${formattedDate}`,
+    plan: subscription.plan || "PRO",
+  };
+}
+
+function extractRows(response, keys = []) {
+  if (!response) return [];
+  const data = response.data || response;
   if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.data)) return data.data;
+  for (const key of keys) {
+    if (Array.isArray(data[key])) return data[key];
+    if (Array.isArray(data.data?.[key])) return data.data[key];
+  }
+  if (Array.isArray(data.tickets)) return data.tickets;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.invoices)) return data.invoices;
+  if (Array.isArray(data.rows)) return data.rows;
   return [];
 }
 
@@ -519,45 +132,154 @@ function isLowStock(item) {
   return minimum > 0 ? current <= minimum : current <= 2;
 }
 
-function buildBillingQueue({ invoices, tickets }) {
-  const invoiceRows = invoices.map((invoice) => ({ ...invoice, type: "invoice" }));
-  const ticketRows = tickets
-    .filter((ticket) => billingStatuses.includes(ticket.status))
-    .map((ticket) => ({
-      id: ticket.id,
-      ticketId: ticket.id,
-      ticket,
-      finalInvoiceAmount: ticket.finalInvoiceAmount,
-      type: "ticket",
-    }));
-  return [...invoiceRows, ...ticketRows];
+export function Dashboard() {
+  const { user, hasPermission } = useAuth();
+  const subscription = user?.business?.subscription;
+  const subMeta = getSubscriptionMeta(subscription);
+
+  const repairQuery = useQuery({
+    queryKey: ["repairs", "dashboard-summary"],
+    queryFn: () => repairApi.list({ limit: 100 }),
+    retry: 1,
+  });
+
+  const inventoryQuery = useQuery({
+    queryKey: ["inventory", "dashboard-summary"],
+    queryFn: () => inventoryApi.list({ limit: 100 }),
+    retry: 1,
+  });
+
+  const billingQuery = useQuery({
+    queryKey: ["billing", "dashboard-summary"],
+    queryFn: () => billingApi.invoices({ limit: 100 }),
+    retry: 1,
+  });
+
+  const tickets = extractRows(repairQuery.data, ["tickets", "repairs", "rows"]);
+  const inventoryItems = extractRows(inventoryQuery.data, ["items", "inventoryItems", "products", "rows"]);
+  const invoices = extractRows(billingQuery.data, ["invoices", "rows"]);
+
+  // Calculate dynamic metrics
+  const activeTickets = tickets.filter((t) => t.status !== "DELIVERED" && t.status !== "CANCELLED" && t.status !== "CLOSED");
+  const pendingCount = activeTickets.length > 0 ? activeTickets.length : tickets.length;
+
+  const isToday = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr);
+    const now = new Date();
+    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  };
+  const todayTickets = tickets.filter((t) => isToday(t.createdAt) || isToday(t.updatedAt));
+  const todayCount = todayTickets.length > 0 ? todayTickets.length : activeTickets.length;
+
+  const billingTickets = tickets.filter((t) => ["READY_FOR_REVIEW", "READY_FOR_DELIVERY", "DELIVERED"].includes(t.status));
+  const billingCount = invoices.length > 0 ? invoices.filter((i) => i.status !== "PAID").length : billingTickets.length;
+
+  const lowStockItems = inventoryItems.filter(isLowStock);
+  const inventoryAlertCount = lowStockItems.length;
+
+  const visibleActions = quickActions.filter((action) => hasPermission(...action.permissions));
+
+  return (
+    <div className="mx-auto flex max-w-[1500px] flex-col gap-5">
+      <PageHeader
+        title="Dashboard"
+        description={`Good ${dayPart()}, ${user?.fullName || "there"}. Here is what needs attention now.`}
+        actions={
+          hasPermission(PERMISSIONS.REPAIR_INTAKE) ? (
+            <Link to="/repair/new">
+              <Button type="button" className="h-10 text-xs font-bold gap-2">
+                <BadgePlus className="h-4 w-4" />
+                Create Repair
+              </Button>
+            </Link>
+          ) : null
+        }
+      />
+
+      {/* TOP 5 SQUARE SUMMARY CARDS */}
+      <section className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+        <SquareSummaryCard label="Today's Work" value={todayCount} detail="Jobs needing action" icon={Wrench} tone="bg-blue-50 text-blue-700" />
+        <SquareSummaryCard label="Pending Repairs" value={pendingCount} detail="Open repair flow" icon={ClipboardList} tone="bg-emerald-50 text-emerald-700" />
+        <SquareSummaryCard label="Billing Queue" value={billingCount} detail="Invoice / payment" icon={CreditCard} tone="bg-amber-50 text-amber-700" />
+        <SquareSummaryCard label="Inventory Alerts" value={inventoryAlertCount} detail="Low attention stock" icon={PackageSearch} tone="bg-cyan-50 text-cyan-700" />
+        <SquareSummaryCard
+          label="Subscription"
+          value={subMeta.daysLeft}
+          detail={subMeta.detail}
+          icon={Clock3}
+          tone="bg-purple-50 text-purple-700"
+          badge={subMeta.text}
+          link="/subscription"
+        />
+      </section>
+
+      {/* QUICK ACTIONS GRID */}
+      {visibleActions.length ? (
+        <Card className="rounded-2xl border-slate-200 shadow-[0_18px_45px_rgba(15,23,42,0.06)]">
+          <CardHeader className="border-slate-100">
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-4">
+              {visibleActions.map((action) => (
+                <ActionCard key={action.path} action={action} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
 }
 
-function buildRecentActivity({ analytics, tickets, invoices, assignedTickets }) {
-  const backendRows = Array.isArray(analytics.recentActivities)
-    ? analytics.recentActivities.map((activity, index) => ({
-        id: activity.id || `activity-${index}`,
-        title: activity.title || activity.message || activity.description || "Activity",
-        detail: activity.type || activity.action || activity.createdAt || "Recent update",
-        type: activity.type || "activity",
-      }))
-    : [];
+function SquareSummaryCard({ label, value, detail, icon: Icon, tone, badge, link }) {
+  const content = (
+    <Card className="group relative overflow-hidden rounded-xl border border-slate-200/90 bg-white p-3.5 shadow-sm transition-all hover:border-blue-300 hover:shadow-md h-full flex flex-col justify-between">
+      <div className="flex items-center justify-between gap-2">
+        <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold", tone)}>
+          <Icon className="h-4.5 w-4.5" />
+        </span>
+        {badge ? (
+          <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-black text-purple-800 tracking-wide">
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-3">
+        <p className="text-2xl font-black text-slate-900 tracking-tight">{value}</p>
+        <p className="text-xs font-bold text-slate-800 mt-0.5 truncate">{label}</p>
+        <p className="text-[10px] font-medium text-slate-400 truncate mt-0.5">{detail}</p>
+      </div>
+    </Card>
+  );
 
-  const repairRows = [...tickets, ...assignedTickets].slice(0, 4).map((ticket) => ({
-    id: `repair-${ticket.id}`,
-    title: ticketLabel(ticket),
-    detail: `${ticket.status || "Repair"} · ${formatDate(ticket.updatedAt || ticket.createdAt)}`,
-    type: "repair",
-  }));
+  if (link) {
+    return <Link to={link}>{content}</Link>;
+  }
 
-  const invoiceRows = invoices.slice(0, 3).map((invoice) => ({
-    id: `invoice-${invoice.id}`,
-    title: invoice.invoiceNumber || "Invoice",
-    detail: `${formatCurrency(invoice.totalAmount || invoice.amount || 0)} · ${invoice.status || "Billing"}`,
-    type: "billing",
-  }));
+  return content;
+}
 
-  return [...backendRows, ...repairRows, ...invoiceRows];
+function ActionCard({ action }) {
+  const Icon = action.icon;
+  return (
+    <Link
+      to={action.path}
+      className="group flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition hover:border-blue-300 hover:bg-blue-50/40 hover:shadow-md"
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-lg text-sm font-bold", action.tone)}>
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-slate-900 truncate group-hover:text-blue-700">{action.label}</p>
+          <p className="text-[10px] text-slate-400 truncate mt-0.5">{action.detail}</p>
+        </div>
+      </div>
+      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-600" />
+    </Link>
+  );
 }
 
 function dayPart() {

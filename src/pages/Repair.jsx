@@ -1,11 +1,11 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { Search } from "lucide-react";
+import { BadgePlus, Calculator, Search } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
-import { Input, Select, Textarea } from "@/components/ui/Form";
+import { Field, Input, Select, Textarea } from "@/components/ui/Form";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -102,63 +102,265 @@ export function Repair() {
 
 export function CreateRepair() {
   const queryClient = useQueryClient();
+  const [estimateTicket, setEstimateTicket] = useState(null);
+  const [openEstimateModal, setOpenEstimateModal] = useState(false);
+
   const mutation = useNotifyMutation({
     mutationFn: repairApi.create,
     successMessage: "Repair ticket created successfully.",
     limitResource: "devices",
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["repair"] }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ["repair"] });
+      const newTicket = res?.data?.ticket;
+      if (newTicket) {
+        setEstimateTicket(newTicket);
+        setOpenEstimateModal(true);
+      }
+    },
   });
+
+  const estimateMutation = useNotifyMutation({
+    mutationFn: ({ ticketId, payload }) => repairApi.createEstimate(ticketId, payload),
+    successMessage: "Estimate created successfully.",
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["repair"] });
+      setOpenEstimateModal(false);
+      setEstimateTicket(null);
+    },
+  });
+
+  const pendingQuery = useQuery({
+    queryKey: ["repair", "pending-estimates"],
+    queryFn: () => repairApi.list({ limit: 100 }),
+  });
+
+  const allTickets = unwrapArray(pendingQuery.data, ["tickets"]);
+  const estimateStatuses = ["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"];
+  const pendingTickets = allTickets.filter(
+    (t) => estimateStatuses.includes(t.status) && (!t.estimates || t.estimates.length === 0)
+  );
+
   const createdTicket = mutation.data?.data?.ticket;
 
   return (
     <OperationsWorkflowPage current="customer" ticket={createdTicket} showContinue={false}>
-      <PageHeader title="Create Repair" description="Customer intake creates customer information, device registration, ticket details, and initial issue notes." />
-      <Card>
-        <CardContent>
-          <form className="grid gap-4 md:grid-cols-2" onSubmit={async (event) => {
-            event.preventDefault();
-            const form = new FormData(event.currentTarget);
-            const itemName = String(form.get("itemName") || "").trim();
-            const issueDescription = String(form.get("issueDescription") || "").trim();
-            const itemIdentifier = String(form.get("itemIdentifier") || "").trim();
-            const issueTitle = issueDescription.slice(0, 120) || `Issue with ${itemName}`;
-            const identifierPayload = itemIdentifier
-              ? /^\d{14,16}$/.test(itemIdentifier)
-                ? { imei: itemIdentifier }
-                : { serialNumber: itemIdentifier }
-              : {};
-            try {
-              await mutation.mutateAsync({
-                customer: { fullName: form.get("fullName"), phone: form.get("phone") },
-                title: `${itemName} repair`,
-                description: issueDescription,
-                priority: form.get("priority"),
-                items: [{ itemType: "PHONE", brand: itemName, model: itemName, ...identifierPayload }],
-                issues: [{ title: issueTitle, description: issueDescription }],
-              });
-              event.currentTarget.reset();
-            } catch {
-              // Error toast is handled by the mutation.
-            }
-          }}>
-            <Input name="fullName" placeholder="Customer name" required />
-            <Input name="phone" placeholder="Phone" required />
-            <Input name="itemName" placeholder="Item Name" required />
-            <Select name="priority" defaultValue="NORMAL"><option>LOW</option><option>NORMAL</option><option>HIGH</option><option>URGENT</option></Select>
-            <Input className="md:col-span-2" name="itemIdentifier" placeholder="IMEI / Serial Number (optional)" />
-            <Textarea className="md:col-span-2" name="issueDescription" placeholder="Issue Description" required />
-            <Button className="md:col-span-2" disabled={mutation.isPending}>{mutation.isPending ? "Creating..." : "Create Repair"}</Button>
-          </form>
-          {createdTicket ? (
-            <div className="mt-4 flex flex-col gap-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800 md:flex-row md:items-center md:justify-between">
-              <span>Repair created: {ticketLabel(createdTicket)}</span>
-              <Link to={`/repair/estimates?ticketId=${createdTicket.id}`}>
-                <Button size="sm" type="button">Go to Estimate</Button>
-              </Link>
+      <PageHeader
+        title="Repair Intake"
+        description="Customer intake creates customer information, device registration, ticket details, and immediate estimate."
+      />
+
+      <div className="space-y-6">
+        <Card className="border border-slate-200/80 shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <CardTitle className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <BadgePlus className="h-5 w-5 text-[#1769aa]" />
+              New Repair Intake
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-4">
+            <form
+              className="grid gap-4 md:grid-cols-2"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                const itemName = String(form.get("itemName") || "").trim();
+                const issueDescription = String(form.get("issueDescription") || "").trim();
+                const itemIdentifier = String(form.get("itemIdentifier") || "").trim();
+                const issueTitle = issueDescription.slice(0, 120) || `Issue with ${itemName}`;
+                const identifierPayload = itemIdentifier
+                  ? /^\d{14,16}$/.test(itemIdentifier)
+                    ? { imei: itemIdentifier }
+                    : { serialNumber: itemIdentifier }
+                  : {};
+                try {
+                  await mutation.mutateAsync({
+                    customer: { fullName: form.get("fullName"), phone: form.get("phone") },
+                    title: `${itemName} repair`,
+                    description: issueDescription,
+                    priority: form.get("priority"),
+                    items: [{ itemType: "PHONE", brand: itemName, model: itemName, ...identifierPayload }],
+                    issues: [{ title: issueTitle, description: issueDescription }],
+                  });
+                  event.currentTarget.reset();
+                } catch {
+                }
+              }}
+            >
+              <Input name="fullName" placeholder="Customer Name" required />
+              <Input name="phone" placeholder="Phone Number" required />
+              <Input name="itemName" placeholder="Device / Item Name" required />
+              <Select name="priority" defaultValue="NORMAL">
+                <option>LOW</option>
+                <option>NORMAL</option>
+                <option>HIGH</option>
+                <option>URGENT</option>
+              </Select>
+              <Input className="md:col-span-2" name="itemIdentifier" placeholder="IMEI / Serial Number (optional)" />
+              <Textarea className="md:col-span-2" name="issueDescription" placeholder="Issue Description / Problem Note" required rows={3} />
+              <Button className="md:col-span-2 h-11 text-sm font-bold bg-[#1769aa] hover:bg-[#125388]" disabled={mutation.isPending}>
+                {mutation.isPending ? "Creating Repair Ticket..." : "Create Repair Ticket"}
+              </Button>
+            </form>
+
+            {createdTicket ? (
+              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-900 md:flex-row md:items-center md:justify-between">
+                <span className="font-semibold">
+                  Repair Created: <span className="font-bold">{ticketLabel(createdTicket)}</span>
+                </span>
+                <Button
+                  size="sm"
+                  type="button"
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  onClick={() => {
+                    setEstimateTicket(createdTicket);
+                    setOpenEstimateModal(true);
+                  }}
+                >
+                  + Add Estimate Now
+                </Button>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="border border-slate-200/80 shadow-sm">
+          <CardHeader className="border-b border-slate-100 pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-amber-600" />
+                <CardTitle className="text-lg font-bold text-slate-900">Pending Estimates</CardTitle>
+              </div>
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+                {pendingTickets.length} Pending
+              </span>
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
+            <p className="mt-0.5 text-xs text-slate-500">Tickets waiting for repair cost & labor estimate</p>
+          </CardHeader>
+          <CardContent className="pt-4">
+            {pendingTickets.length ? (
+              <div className="divide-y divide-slate-100">
+                {pendingTickets.map((t) => (
+                  <div key={t.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        {ticketLabel(t)}
+                        <StatusBadge status={t.status} />
+                      </p>
+                      <p className="text-xs text-slate-600 mt-0.5 font-medium">{t.title}</p>
+                      {t.customer?.fullName && (
+                        <p className="text-xs text-slate-400">Customer: {t.customer.fullName}</p>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      type="button"
+                      className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-4"
+                      onClick={() => {
+                        setEstimateTicket(t);
+                        setOpenEstimateModal(true);
+                      }}
+                    >
+                      + Create Estimate
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic text-center py-4">
+                No tickets currently pending estimate creation.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {openEstimateModal && estimateTicket ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Calculator className="h-5 w-5 text-[#1769aa]" />
+                  Create Estimate for {ticketLabel(estimateTicket)}
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {estimateTicket.title} {estimateTicket.customer?.fullName ? `· Customer: ${estimateTicket.customer.fullName}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOpenEstimateModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const form = new FormData(e.currentTarget);
+                const repairNote = String(form.get("repairNote") || "").trim();
+                estimateMutation.mutate({
+                  ticketId: estimateTicket.id,
+                  payload: {
+                    diagnosis: {
+                      diagnosis: repairNote,
+                      estimatedRepairNotes: repairNote,
+                      estimatedTurnaroundHours: Number(form.get("estimatedTurnaroundHours") || 24),
+                    },
+                    items: [
+                      { itemType: "LABOR", name: "Labor Cost", quantity: 1, unitAmount: Number(form.get("laborCost") || 0) },
+                      { itemType: "PART", name: "Parts Cost", quantity: 1, unitAmount: Number(form.get("partsCost") || 0) },
+                    ],
+                    notes: repairNote,
+                  },
+                });
+              }}
+              className="space-y-4"
+            >
+              <Field label="Diagnosis & Repair Notes">
+                <Textarea
+                  name="repairNote"
+                  placeholder="Enter initial diagnosis, estimated repair requirements, or customer discussion notes..."
+                  required
+                  rows={3}
+                  defaultValue={estimateTicket.description || ""}
+                />
+              </Field>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Field label="Turnaround (Hrs)">
+                  <Input name="estimatedTurnaroundHours" type="number" defaultValue="24" min="1" required />
+                </Field>
+                <Field label="Labor Cost (₹)">
+                  <Input name="laborCost" type="number" defaultValue="0" min="0" required />
+                </Field>
+                <Field label="Parts Cost (₹)">
+                  <Input name="partsCost" type="number" defaultValue="0" min="0" required />
+                </Field>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setOpenEstimateModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold"
+                  disabled={estimateMutation.isPending}
+                >
+                  {estimateMutation.isPending ? "Submitting..." : "Submit Estimate"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
     </OperationsWorkflowPage>
   );
 }

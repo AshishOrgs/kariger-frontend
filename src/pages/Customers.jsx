@@ -38,9 +38,6 @@ export function Customers() {
 
   return (
     <div className="space-y-5">
-      <div className="-mx-4 bg-[var(--background)] px-4 pb-2 pt-1 lg:-mx-6 lg:px-6">
-        <CustomerWorkflowTracker ticketId={requestedTicketId || workflowTicket?.id || ""} />
-      </div>
 
       <Card className="border-l-4 border-l-[var(--primary)]">
         <CardContent className="space-y-4">

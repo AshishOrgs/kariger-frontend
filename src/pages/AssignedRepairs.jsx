@@ -169,9 +169,9 @@ export function AssignedRepairs() {
         ))}
       </div>
 
-      <div className={selectedTicketId ? "grid grid-cols-1 lg:grid-cols-12 gap-6" : "space-y-6"}>
-        {/* Left Side: DataTable List of Assignments */}
-        <div className={selectedTicketId ? "lg:col-span-6" : "w-full"}>
+      <div className="space-y-6">
+        {/* Top: DataTable List of Assignments */}
+        <div className="w-full">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Repairs Queue ({tabs.find((t) => t.id === activeTab)?.name})</CardTitle>
@@ -250,9 +250,9 @@ export function AssignedRepairs() {
           </Card>
         </div>
 
-        {/* Right Side: Execution Detail Workspace Panel */}
+        {/* Bottom: Execution Detail Workspace Panel */}
         {selectedTicketId && (
-          <div className="lg:col-span-6 space-y-6">
+          <div className="w-full space-y-6">
             {ticketDetailQuery.isLoading ? (
               <Card>
                 <CardContent className="py-12 flex flex-col items-center justify-center space-y-3">
@@ -267,7 +267,7 @@ export function AssignedRepairs() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-6 border border-[var(--border)] rounded-xl bg-white p-6 shadow-sm max-h-[85vh] overflow-y-auto sticky top-6">
+              <div className="space-y-6 border border-[var(--border)] rounded-xl bg-white p-6 shadow-sm">
                 {/* Header Section */}
                 <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                   <div>

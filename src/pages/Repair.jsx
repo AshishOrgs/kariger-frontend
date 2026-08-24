@@ -30,7 +30,12 @@ export function Repair() {
   const isTechnicianReportSubmitted = (ticket) => {
     if (!ticket) return false;
     if (reportSubmittedStatuses.includes(ticket.status)) return true;
-    if (ticket.diagnosis || (ticket.laborCost && Number(ticket.laborCost) > 0)) return true;
+    if (
+      ticket.diagnosis ||
+      (ticket.laborCost && Number(ticket.laborCost) > 0) ||
+      (ticket.extraCost && Number(ticket.extraCost) > 0)
+    )
+      return true;
     return false;
   };
 
@@ -650,7 +655,7 @@ function TechnicianReportPanel({ ticket, partsUsage = [] }) {
 
         <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
           <SummaryBlock label="Extra Cost" value={formatCurrency(ticket.extraCost)} />
-          <SummaryBlock label="Why Extra Cost?" value={ticket.extraCostReason} />
+          <SummaryBlock label="Why Extra Cost?" value={ticket.extraCostReason || (Number(ticket.extraCost || 0) > 0 ? "Additional technician charge" : "N/A")} />
         </div>
 
         <div className="mt-4 rounded-md border border-slate-200">

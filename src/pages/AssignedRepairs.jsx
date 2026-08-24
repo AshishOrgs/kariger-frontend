@@ -267,85 +267,61 @@ export function AssignedRepairs() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="space-y-6 border border-[var(--border)] rounded-xl bg-white p-6 shadow-sm">
+              <div className="space-y-4 border border-slate-200 rounded-xl bg-white p-4 shadow-sm">
                 {/* Header Section */}
-                <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                <div className="flex items-start justify-between border-b border-slate-100 pb-3">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-lg font-bold text-slate-900">{ticketLabel(ticket)}</h2>
+                      <h2 className="text-base font-bold text-slate-900">{ticketLabel(ticket)}</h2>
                       <StatusBadge status={ticket.status} />
                     </div>
-                    <p className="text-sm text-slate-500 mt-1">{ticket.title}</p>
+                    {ticket.title && <p className="text-xs text-slate-500 mt-0.5">{ticket.title}</p>}
                   </div>
                   <button
                     onClick={() => setSelectedTicketId(null)}
                     className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition"
                   >
-                    <X className="h-5 w-5" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
 
-                {/* Device and Customer Context Card */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-lg">
+                {/* Device & Customer Context Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
                   <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500 mb-1">Customer Context</p>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-slate-800">
-                        <User className="h-3.5 w-3.5 text-slate-500" />
-                        <span>{ticket.customer?.fullName}</span>
-                      </div>
-                      {ticket.customer?.phone && (
-                        <div className="flex items-center gap-1.5 text-slate-600 hover:text-[var(--primary)]">
-                          <Phone className="h-3.5 w-3.5 text-slate-500" />
-                          <a href={`tel:${ticket.customer.phone}`}>{ticket.customer.phone}</a>
-                        </div>
-                      )}
-                      {ticket.customer?.email && (
-                        <div className="flex items-center gap-1.5 text-slate-600 hover:text-[var(--primary)]">
-                          <Mail className="h-3.5 w-3.5 text-slate-500" />
-                          <a href={`mailto:${ticket.customer.email}`}>{ticket.customer.email}</a>
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400 mb-0.5">Customer</p>
+                    <p className="font-semibold text-slate-800 truncate">{ticket.customer?.fullName || "N/A"}</p>
+                    {ticket.customer?.phone && (
+                      <a href={`tel:${ticket.customer.phone}`} className="text-[11px] text-blue-600 hover:underline block truncate">
+                        {ticket.customer.phone}
+                      </a>
+                    )}
                   </div>
 
                   <div>
-                    <p className="text-xs font-semibold uppercase text-slate-500 mb-1">Device Details</p>
-                    <div className="space-y-1">
-                      {ticket.items && ticket.items[0] ? (
-                        <>
-                          <p className="font-semibold text-slate-800">
-                            {ticket.items[0].brand} {ticket.items[0].model} ({ticket.items[0].itemType})
-                          </p>
-                          {(ticket.items[0].serialNumber || ticket.items[0].imei) && (
-                            <p className="text-xs text-slate-500">
-                              SN/IMEI: {ticket.items[0].serialNumber || ticket.items[0].imei}
-                            </p>
-                          )}
-                          {ticket.items[0].condition && (
-                            <p className="text-xs text-slate-500">Condition: {ticket.items[0].condition}</p>
-                          )}
-                        </>
-                      ) : (
-                        <p className="text-slate-500 italic">No device item set</p>
-                      )}
-                    </div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400 mb-0.5">Device</p>
+                    {ticket.items && ticket.items[0] ? (
+                      <p className="font-semibold text-slate-800 truncate">
+                        {ticket.items[0].brand} {ticket.items[0].model} ({ticket.items[0].itemType})
+                      </p>
+                    ) : (
+                      <p className="text-slate-400 italic">No device set</p>
+                    )}
                   </div>
-                </div>
 
-                {/* Financial Summary Snapshot */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 border border-slate-100 p-4 rounded-lg">
-                  <div className="bg-slate-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Labor Cost</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(getLatestEstimate(ticket)?.laborAmount)}</p>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400 mb-0.5">Serial / IMEI</p>
+                    <p className="font-semibold text-slate-700 truncate">
+                      {ticket.items && ticket.items[0]
+                        ? (ticket.items[0].serialNumber || ticket.items[0].imei || "N/A")
+                        : "N/A"}
+                    </p>
                   </div>
-                  <div className="bg-slate-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Parts Cost</p>
-                    <p className="text-sm font-bold text-slate-800 mt-1">{formatCurrency(getLatestEstimate(ticket)?.partsAmount)}</p>
-                  </div>
-                  <div className="bg-indigo-50 p-2.5 rounded text-center">
-                    <p className="text-[10px] uppercase font-bold text-indigo-500">Estimate Total</p>
-                    <p className="text-sm font-bold text-indigo-700 mt-1">{formatCurrency(getLatestEstimate(ticket)?.totalAmount)}</p>
+
+                  <div>
+                    <p className="text-[10px] font-bold uppercase text-slate-400 mb-0.5">Estimate Total</p>
+                    <p className="font-black text-indigo-700">
+                      {formatCurrency(getLatestEstimate(ticket)?.totalAmount)}
+                    </p>
                   </div>
                 </div>
 
@@ -355,24 +331,25 @@ export function AssignedRepairs() {
                 />
 
                 {/* Execution Details Form */}
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-slate-700">
-                      <Save className="h-4 w-4" />
+                <Card className="border-slate-200">
+                  <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+                    <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-700">
+                      <Save className="h-3.5 w-3.5 text-blue-600" />
                       Technician Repair Form
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleSubmitReport} className="space-y-4">
+                  <CardContent className="p-4 space-y-3">
+                    <form onSubmit={handleSubmitReport} className="space-y-3">
                       <Field label="Diagnosis & Issue Findings">
                         <Textarea
+                          rows={2}
                           placeholder="Write diagnosis, repair work, observations, and completion remarks..."
                           value={formState.diagnosis}
                           onChange={(e) => setFormState({ ...formState, diagnosis: e.target.value })}
                         />
                       </Field>
 
-                      <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+                      <div className="grid gap-3 grid-cols-1 sm:grid-cols-[160px_1fr]">
                         <Field label="Extra Cost">
                           <Input
                             type="number"
@@ -385,7 +362,7 @@ export function AssignedRepairs() {
                         </Field>
                         <Field label="Why Extra Cost?">
                           <Input
-                            placeholder="Example: Extra display fitting work, connector repair, urgent service..."
+                            placeholder="Example: Extra display fitting, connector repair..."
                             value={formState.extraCostReason}
                             onChange={(e) => setFormState({ ...formState, extraCostReason: e.target.value })}
                           />
@@ -400,7 +377,7 @@ export function AssignedRepairs() {
                       <Button
                         type="submit"
                         disabled={submitReportMutation.isPending}
-                        className="w-full flex items-center justify-center gap-2"
+                        className="w-full h-9 text-xs font-bold flex items-center justify-center gap-2"
                       >
                         {submitReportMutation.isPending ? (
                           <>
@@ -415,7 +392,7 @@ export function AssignedRepairs() {
                         )}
                       </Button>
                       {partsUsages.length === 0 ? (
-                        <p className="text-center text-xs text-slate-500">
+                        <p className="text-center text-[11px] text-slate-400">
                           No item parts used for this repair. You can still submit the technician report.
                         </p>
                       ) : null}
@@ -679,21 +656,23 @@ function ConsumedInventorySummary({ ticket, partsUsages }) {
   const partsTotal = partsUsages.reduce((sum, usage) => sum + Number(usage.totalCost || Number(usage.quantity || 0) * Number(usage.unitCost || 0)), 0);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold flex items-center gap-1.5 text-slate-700">
-          <Plus className="h-4 w-4 text-[var(--primary)]" />
+    <Card className="border-slate-200">
+      <CardHeader className="py-2.5 px-4 border-b border-slate-100">
+        <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 text-slate-700">
+          <Plus className="h-3.5 w-3.5 text-blue-600" />
           Consumed Inventory
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-800">Need inventory parts for this repair?</p>
-          <p className="mt-1 text-xs text-slate-500">
-            Open Inventory to select available stock. The repair will store consumed parts and inventory stock will update automatically.
-          </p>
-          <Link to={`/technician/inventory?ticketId=${ticket?.id || ""}`}>
-            <Button type="button" className="mt-3 w-full" disabled={!ticket?.id}>
+      <CardContent className="p-3.5 space-y-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3">
+          <div>
+            <p className="text-xs font-semibold text-slate-800">Need inventory parts for this repair?</p>
+            <p className="mt-0.5 text-[11px] text-slate-500">
+              Select stock items to update inventory and associate parts with this ticket.
+            </p>
+          </div>
+          <Link to={`/technician/inventory?ticketId=${ticket?.id || ""}`} className="shrink-0 w-full sm:w-auto">
+            <Button type="button" size="sm" className="h-8 text-xs font-bold w-full sm:w-auto" disabled={!ticket?.id}>
               Use Item Parts
             </Button>
           </Link>

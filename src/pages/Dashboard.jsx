@@ -39,7 +39,7 @@ const quickActions = [
     tone: "bg-emerald-50 text-emerald-700",
   },
   {
-    label: "Repair Jobs",
+    label: "Technician Report",
     detail: "Open repair queue",
     path: "/repair",
     icon: ClipboardList,

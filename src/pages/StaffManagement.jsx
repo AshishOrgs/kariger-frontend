@@ -97,7 +97,7 @@ const PERMISSION_GROUPS = [
     title: "Repair",
     permissions: [
       [PERMISSIONS.REPAIR_INTAKE, "Repair Intake"],
-      [PERMISSIONS.REPAIR_JOBS_VIEW, "Repair Jobs"],
+      [PERMISSIONS.REPAIR_JOBS_VIEW, "Technician Report"],
       [PERMISSIONS.REPAIR_ESTIMATE, "Estimate Access"],
       [PERMISSIONS.ESTIMATE_CREATE, "Create Estimate"],
       [PERMISSIONS.ESTIMATE_APPROVE, "Approve Estimate"],

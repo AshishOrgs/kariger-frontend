@@ -1,6 +1,6 @@
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useSearchParams } from "react-router-dom";
-import { BadgePlus, Calculator, Search } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { BadgePlus, Calculator, Search, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -68,7 +68,7 @@ export function Repair() {
 
   return (
     <OperationsWorkflowPage current="repair" ticket={workflowTicket} ticketId={requestedTicketId} showContinue={false} showSummary={false}>
-      <PageHeader title="Repair" description="Technician execution workspace for status, timeline, notes, progress, device condition, and quality review." />
+      <PageHeader title="Technician Report" description="Technician execution workspace for status, timeline, notes, progress, device condition, and quality review." />
       <Card className="mb-4">
         <CardContent className="grid gap-3 md:grid-cols-[1fr_220px]">
           <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input className="pl-9" placeholder="Search repairs" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
@@ -102,8 +102,12 @@ export function Repair() {
 
 export function CreateRepair() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [estimateTicket, setEstimateTicket] = useState(null);
   const [openEstimateModal, setOpenEstimateModal] = useState(false);
+  const [redirectToAssign, setRedirectToAssign] = useState(false);
+  const [detailTicket, setDetailTicket] = useState(null);
+  const [openDetailModal, setOpenDetailModal] = useState(false);
 
   const mutation = useNotifyMutation({
     mutationFn: repairApi.create,
@@ -122,10 +126,14 @@ export function CreateRepair() {
   const estimateMutation = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.createEstimate(ticketId, payload),
     successMessage: "Estimate created successfully.",
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["repair"] });
       setOpenEstimateModal(false);
+      const targetTicketId = variables?.ticketId || estimateTicket?.id;
       setEstimateTicket(null);
+      if (redirectToAssign && targetTicketId) {
+        navigate(`/assignments?ticketId=${targetTicketId}`);
+      }
     },
   });
 
@@ -135,15 +143,17 @@ export function CreateRepair() {
   });
 
   const allTickets = unwrapArray(pendingQuery.data, ["tickets"]);
-  const estimateStatuses = ["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"];
-  const pendingTickets = allTickets.filter(
-    (t) => estimateStatuses.includes(t.status) && (!t.estimates || t.estimates.length === 0)
-  );
+  const pendingTickets = allTickets.filter((t) => {
+    if (isTerminalTicketStatus(t.status)) return false;
+    const hasEstimate = Array.isArray(t.estimates) && t.estimates.length > 0;
+    const hasAssignment = (t.assignments || []).some(isActiveAssignment) || Boolean(t.assignedTechnicianName);
+    return !hasEstimate || !hasAssignment;
+  });
 
   const createdTicket = mutation.data?.data?.ticket;
 
   return (
-    <OperationsWorkflowPage current="customer" ticket={createdTicket} showContinue={false}>
+    <OperationsWorkflowPage current="customer" ticket={createdTicket} showContinue={false} showSummary={false}>
       <PageHeader
         title="Repair Intake"
         description="Customer intake creates customer information, device registration, ticket details, and immediate estimate."
@@ -201,25 +211,6 @@ export function CreateRepair() {
                 {mutation.isPending ? "Creating Repair Ticket..." : "Create Repair Ticket"}
               </Button>
             </form>
-
-            {createdTicket ? (
-              <div className="mt-4 flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-900 md:flex-row md:items-center md:justify-between">
-                <span className="font-semibold">
-                  Repair Created: <span className="font-bold">{ticketLabel(createdTicket)}</span>
-                </span>
-                <Button
-                  size="sm"
-                  type="button"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                  onClick={() => {
-                    setEstimateTicket(createdTicket);
-                    setOpenEstimateModal(true);
-                  }}
-                >
-                  + Add Estimate Now
-                </Button>
-              </div>
-            ) : null}
           </CardContent>
         </Card>
 
@@ -228,136 +219,283 @@ export function CreateRepair() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calculator className="h-5 w-5 text-amber-600" />
-                <CardTitle className="text-lg font-bold text-slate-900">Pending Estimates</CardTitle>
+                <CardTitle className="text-lg font-bold text-slate-900">Pending Estimates & Assign Technician</CardTitle>
               </div>
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-800">
                 {pendingTickets.length} Pending
               </span>
             </div>
-            <p className="mt-0.5 text-xs text-slate-500">Tickets waiting for repair cost & labor estimate</p>
+            <p className="mt-0.5 text-xs text-slate-500">Tickets waiting for repair cost estimate or technician assignment</p>
           </CardHeader>
           <CardContent className="pt-4">
             {pendingTickets.length ? (
               <div className="divide-y divide-slate-100">
-                {pendingTickets.map((t) => (
-                  <div key={t.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                        {ticketLabel(t)}
-                        <StatusBadge status={t.status} />
-                      </p>
-                      <p className="text-xs text-slate-600 mt-0.5 font-medium">{t.title}</p>
-                      {t.customer?.fullName && (
-                        <p className="text-xs text-slate-400">Customer: {t.customer.fullName}</p>
-                      )}
+                {pendingTickets.map((t) => {
+                  const hasEstimate = Array.isArray(t.estimates) && t.estimates.length > 0;
+                  const hasAssignment = (t.assignments || []).some(isActiveAssignment) || Boolean(t.assignedTechnicianName);
+
+                  return (
+                    <div key={t.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-bold text-slate-900 text-sm">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDetailTicket(t);
+                              setOpenDetailModal(true);
+                            }}
+                            onDoubleClick={() => {
+                              setOpenDetailModal(false);
+                            }}
+                            className="text-[#1769aa] hover:underline font-bold text-left cursor-pointer"
+                            title="Click to view details, double-click to hide"
+                          >
+                            {ticketLabel(t)}
+                          </button>
+                        </p>
+                        <p className="text-xs text-slate-600 mt-0.5 font-medium">{t.title}</p>
+                        {t.customer?.fullName && (
+                          <p className="text-xs text-slate-400">Customer: {t.customer.fullName}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {/* Step 1: Estimate */}
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 1</span>
+                          {hasEstimate ? (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                              ✓ Estimate Created
+                            </span>
+                          ) : (
+                            <Button
+                              size="sm"
+                              type="button"
+                              className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-3"
+                              onClick={() => {
+                                setEstimateTicket(t);
+                                setOpenEstimateModal(true);
+                              }}
+                            >
+                              + Create Estimate
+                            </Button>
+                          )}
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-slate-300 shrink-0" />
+                        {/* Step 2: Assign Technician */}
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 2</span>
+                          <Link to={`/assignments?ticketId=${t.id}`}>
+                            <Button
+                              size="sm"
+                              type="button"
+                              className={
+                                hasEstimate && !hasAssignment
+                                  ? "bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-3 animate-pulse"
+                                  : "border border-slate-300 text-slate-600 font-bold text-xs h-9 px-3 hover:bg-slate-50"
+                              }
+                              variant={hasEstimate && !hasAssignment ? "default" : "secondary"}
+                            >
+                              Assign Technician
+                            </Button>
+                          </Link>
+                        </div>
+                      </div>
                     </div>
-                    <Button
-                      size="sm"
-                      type="button"
-                      className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-4"
-                      onClick={() => {
-                        setEstimateTicket(t);
-                        setOpenEstimateModal(true);
-                      }}
-                    >
-                      + Create Estimate
-                    </Button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-slate-400 italic text-center py-4">
-                No tickets currently pending estimate creation.
+                No tickets currently pending estimate creation or technician assignment.
               </p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {openEstimateModal && estimateTicket ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl space-y-4">
+      {openEstimateModal && estimateTicket ? (() => {
+        const existingEst = Array.isArray(estimateTicket.estimates) && estimateTicket.estimates.length > 0 ? estimateTicket.estimates[0] : null;
+        const existingLabor = existingEst?.items?.find((i) => i.itemType === "LABOR")?.unitAmount ?? (existingEst?.laborCost || 0);
+        const existingParts = existingEst?.items?.find((i) => i.itemType === "PART")?.unitAmount ?? (existingEst?.partsCost || 0);
+        const existingTurnaround = existingEst?.diagnosis?.estimatedTurnaroundHours || 24;
+        const existingNotes = existingEst?.diagnosis?.diagnosis || existingEst?.notes || estimateTicket.description || "";
+        const isEditMode = Boolean(existingEst);
+
+        return (
+          <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4">
+            <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+              {/* Modal Header */}
+              <div className="bg-[#1769aa] px-5 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+                    <span className="text-white font-black text-xs">1</span>
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-white">
+                      {isEditMode ? "Update Estimate" : "Create Estimate"}
+                    </h2>
+                    <p className="text-[11px] text-blue-100 mt-0.5">
+                      {ticketLabel(estimateTicket)} · {estimateTicket.customer?.fullName || ""}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpenEstimateModal(false)}
+                  className="text-white/70 hover:text-white font-bold text-lg leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Step indicator */}
+              <div className="flex border-b border-slate-100">
+                <div className="flex-1 py-2 px-4 bg-blue-50 border-b-2 border-[#1769aa] text-center">
+                  <span className="text-[11px] font-bold text-[#1769aa]">① Estimate Details</span>
+                </div>
+                <div className="flex-1 py-2 px-4 text-center">
+                  <span className="text-[11px] font-bold text-slate-400">② Assign Technician</span>
+                </div>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = new FormData(e.currentTarget);
+                  const repairNote = String(form.get("repairNote") || "").trim();
+                  estimateMutation.mutate({
+                    ticketId: estimateTicket.id,
+                    payload: {
+                      diagnosis: {
+                        diagnosis: repairNote,
+                        estimatedRepairNotes: repairNote,
+                        estimatedTurnaroundHours: Number(form.get("estimatedTurnaroundHours") || 24),
+                      },
+                      items: [
+                        { itemType: "LABOR", name: "Labor Cost", quantity: 1, unitAmount: Number(form.get("laborCost") || 0) },
+                        { itemType: "PART", name: "Parts Cost", quantity: 1, unitAmount: Number(form.get("partsCost") || 0) },
+                      ],
+                      notes: repairNote,
+                    },
+                  });
+                }}
+                className="p-5 space-y-4"
+              >
+                <Field label="Diagnosis & Repair Notes">
+                  <Textarea
+                    name="repairNote"
+                    placeholder="Enter initial diagnosis, estimated repair requirements, or customer discussion notes..."
+                    required
+                    rows={3}
+                    defaultValue={existingNotes}
+                  />
+                </Field>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="Turnaround (Hrs)">
+                    <Input name="estimatedTurnaroundHours" type="number" defaultValue={existingTurnaround} min="1" required />
+                  </Field>
+                  <Field label="Labor Cost (₹)">
+                    <Input name="laborCost" type="number" defaultValue={existingLabor} min="0" required />
+                  </Field>
+                  <Field label="Parts Cost (₹)">
+                    <Input name="partsCost" type="number" defaultValue={existingParts} min="0" required />
+                  </Field>
+                </div>
+
+                {/* Primary action: Save Estimate */}
+                <Button
+                  type="submit"
+                  className="w-full h-11 bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-sm"
+                  disabled={estimateMutation.isPending}
+                  onClick={() => setRedirectToAssign(false)}
+                >
+                  {estimateMutation.isPending && !redirectToAssign
+                    ? "Saving..."
+                    : isEditMode
+                    ? "✓ Update Estimate"
+                    : "✓ Save Estimate"}
+                </Button>
+
+                {/* Secondary action: Save + go to assign */}
+                <button
+                  type="submit"
+                  className="w-full py-2 text-xs font-bold text-[#1769aa] hover:text-[#125388] underline underline-offset-2 transition-colors"
+                  disabled={estimateMutation.isPending}
+                  onClick={() => setRedirectToAssign(true)}
+                >
+                  {estimateMutation.isPending && redirectToAssign
+                    ? "Saving..."
+                    : "Save Estimate & go to Assign Technician →"}
+                </button>
+
+                <button
+                  type="button"
+                  className="w-full py-1 text-xs text-slate-400 hover:text-slate-600"
+                  onClick={() => setOpenEstimateModal(false)}
+                >
+                  Cancel — fill later from Pending Estimates & Assign Technician
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+      })() : null}
+
+      {openDetailModal && detailTicket ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"
+          onDoubleClick={() => setOpenDetailModal(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-5 shadow-2xl space-y-4"
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              setOpenDetailModal(false);
+            }}
+          >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Calculator className="h-5 w-5 text-[#1769aa]" />
-                  Create Estimate for {ticketLabel(estimateTicket)}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {estimateTicket.title} {estimateTicket.customer?.fullName ? `· Customer: ${estimateTicket.customer.fullName}` : ""}
-                </p>
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-[#1769aa] px-2.5 py-1 text-xs font-black text-white">
+                  {ticketLabel(detailTicket)}
+                </span>
+                <StatusBadge status={detailTicket.status || "RECEIVED"} />
               </div>
               <button
                 type="button"
-                onClick={() => setOpenEstimateModal(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-sm"
+                onClick={() => setOpenDetailModal(false)}
+                className="text-slate-400 hover:text-slate-600 font-bold text-base"
               >
                 ✕
               </button>
             </div>
 
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = new FormData(e.currentTarget);
-                const repairNote = String(form.get("repairNote") || "").trim();
-                estimateMutation.mutate({
-                  ticketId: estimateTicket.id,
-                  payload: {
-                    diagnosis: {
-                      diagnosis: repairNote,
-                      estimatedRepairNotes: repairNote,
-                      estimatedTurnaroundHours: Number(form.get("estimatedTurnaroundHours") || 24),
-                    },
-                    items: [
-                      { itemType: "LABOR", name: "Labor Cost", quantity: 1, unitAmount: Number(form.get("laborCost") || 0) },
-                      { itemType: "PART", name: "Parts Cost", quantity: 1, unitAmount: Number(form.get("partsCost") || 0) },
-                    ],
-                    notes: repairNote,
-                  },
-                });
-              }}
-              className="space-y-4"
-            >
-              <Field label="Diagnosis & Repair Notes">
-                <Textarea
-                  name="repairNote"
-                  placeholder="Enter initial diagnosis, estimated repair requirements, or customer discussion notes..."
-                  required
-                  rows={3}
-                  defaultValue={estimateTicket.description || ""}
-                />
-              </Field>
-
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Field label="Turnaround (Hrs)">
-                  <Input name="estimatedTurnaroundHours" type="number" defaultValue="24" min="1" required />
-                </Field>
-                <Field label="Labor Cost (₹)">
-                  <Input name="laborCost" type="number" defaultValue="0" min="0" required />
-                </Field>
-                <Field label="Parts Cost (₹)">
-                  <Input name="partsCost" type="number" defaultValue="0" min="0" required />
-                </Field>
+            <div className="grid gap-3 text-xs sm:grid-cols-2">
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Customer</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-900">{detailTicket.customer?.fullName || detailTicket.customerId || "N/A"}</span>
+                {detailTicket.customer?.phone && <span className="text-[11px] text-slate-500">{detailTicket.customer.phone}</span>}
               </div>
-
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setOpenEstimateModal(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold"
-                  disabled={estimateMutation.isPending}
-                >
-                  {estimateMutation.isPending ? "Submitting..." : "Submit Estimate"}
-                </Button>
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Device</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-900">{detailTicket.items?.[0] ? `${detailTicket.items[0].brand || ""} ${detailTicket.items[0].model || ""}`.trim() || detailTicket.items[0].itemType : detailTicket.title || "Device"}</span>
               </div>
-            </form>
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">IMEI / Serial</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-900 font-mono">{detailTicket.items?.[0]?.imei || detailTicket.items?.[0]?.serialNumber || "N/A"}</span>
+              </div>
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Assigned Technician</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-900">{detailTicket.assignedTechnicianName || "Unassigned"}</span>
+              </div>
+            </div>
+
+            {detailTicket.description && (
+              <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100 text-xs">
+                <span className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Issue Note</span>
+                <p className="mt-1 text-slate-700 font-medium whitespace-pre-wrap">{detailTicket.description}</p>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -391,34 +529,19 @@ export function RepairDetails({ id }) {
 }
 
 function NextRepairStep({ ticket }) {
-  const assigned = Boolean(ticket.assignedTechnicianName);
   const status = ticket.status;
 
-  if (!assigned && !["DELIVERED", "CANCELLED", "CLOSED"].includes(status)) {
-    return <Link to={`/assignments?ticketId=${ticket.id}`}><Button size="sm" type="button">Assign</Button></Link>;
+  if (["DELIVERED", "CANCELLED", "CLOSED"].includes(status)) {
+    return <span className="text-sm text-[var(--muted)]">{status}</span>;
   }
 
-  if (["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"].includes(status)) {
-    return <Link to={`/repair/estimates?ticketId=${ticket.id}`}><Button size="sm" type="button">Estimate</Button></Link>;
-  }
-
-  if (["APPROVED", "IN_REPAIR", "WAITING_PARTS", "READY_FOR_REVIEW"].includes(status)) {
-    return <Link to={`/repair?ticketId=${ticket.id}`}><Button size="sm" type="button">Technician Report</Button></Link>;
-  }
-
-  if (status === "READY_FOR_DELIVERY") {
-    if (ticket.paymentStatus !== "PAID") {
-      return <Link to={`/repair?ticketId=${ticket.id}`}><Button size="sm" type="button">Technician Report</Button></Link>;
-    }
-
-    return <Link to={`/handover?ticketId=${ticket.id}`}><Button size="sm" type="button">Handover</Button></Link>;
-  }
-
-  if (status === "DELIVERED") {
-    return <span className="text-sm text-[var(--muted)]">Delivered</span>;
-  }
-
-  return <span className="text-sm text-[var(--muted)]">Review</span>;
+  return (
+    <Link to={`/repair?ticketId=${ticket.id}`}>
+      <Button size="sm" type="button" className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold">
+        Technician Report
+      </Button>
+    </Link>
+  );
 }
 
 function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
@@ -454,11 +577,11 @@ function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <PageHeader
-          title="Technician report"
+          title="Technician Report"
           description="Review technician work, used item parts, and final repair cost before billing."
         />
         <Link to="/repair">
-          <Button type="button" variant="secondary">Back to Repairs</Button>
+          <Button type="button" variant="secondary">← Back to Technician Report</Button>
         </Link>
       </div>
 
@@ -497,7 +620,7 @@ function TechnicianReportPanel({ ticket, partsUsage = [] }) {
       <CardContent>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-lg font-black text-slate-950">Technician report</h3>
+            <h3 className="text-lg font-black text-slate-950">Technician Report</h3>
             <p className="mt-1 text-sm text-[var(--muted)]">
               Read-only repair report and used item parts submitted for this ticket.
             </p>

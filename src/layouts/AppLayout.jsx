@@ -223,7 +223,7 @@ const mobileSectionIconTone = {
   Dashboard: "bg-sky-50 text-sky-700",
   "Repair Intake": "bg-teal-50 text-teal-700",
   "Repair Estimates": "bg-indigo-50 text-indigo-700",
-  "Repair Jobs": "bg-blue-50 text-blue-700",
+  "Technician Report": "bg-blue-50 text-blue-700",
   "Technician Work": "bg-emerald-50 text-emerald-700",
   Billing: "bg-amber-50 text-amber-700",
   Handover: "bg-teal-50 text-teal-700",

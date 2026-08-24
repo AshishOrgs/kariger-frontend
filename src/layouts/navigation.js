@@ -55,7 +55,7 @@ export const navigation = [
   },
   {
     id: "repair-jobs",
-    label: "Repair Jobs",
+    label: "Technician Report",
     path: "/repair",
     icon: ClipboardList,
     permissions: [PERMISSIONS.REPAIR_JOBS_VIEW],

@@ -596,22 +596,14 @@ function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <PageHeader
-          title="Technician Report"
-          description="Review technician work, used item parts, and final repair cost before billing."
-        />
-        <Link to="/repair">
-          <Button type="button" variant="secondary" className="h-9 font-bold">
-            ← Back to Technician Report
-          </Button>
-        </Link>
-      </div>
-
       {/* SINGLE UNIFIED TECHNICIAN REPORT CARD */}
       <Card className="border border-slate-200 shadow-sm overflow-hidden rounded-xl">
         <CardHeader className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
+            <Link to="/repair" className="text-xs font-bold text-slate-500 hover:text-[#1769aa] flex items-center gap-1">
+              ← Back
+            </Link>
+            <span className="h-4 w-px bg-slate-300"></span>
             <span className="rounded-lg bg-[#1769aa] px-3 py-1 text-xs font-black text-white tracking-wide">
               {ticketLabel(ticket)}
             </span>

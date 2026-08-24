@@ -72,9 +72,11 @@ export function Repair() {
     <OperationsWorkflowPage current="repair" ticket={workflowTicket} ticketId={requestedTicketId} showContinue={false} showSummary={false}>
       <PageHeader title="Technician Report" description="Technician execution workspace for status, timeline, notes, progress, device condition, and quality review." />
       <Card className="mb-4">
-        <CardContent className="grid gap-3 md:grid-cols-[1fr_220px]">
-          <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input className="pl-9" placeholder="Search reports" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
-          <Select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{ticketStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
+        <CardContent className="pt-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" />
+            <Input className="pl-9" placeholder="Search technician reports..." value={search} onChange={(event) => setSearch(event.target.value)} />
+          </div>
         </CardContent>
       </Card>
       <Card>
@@ -88,12 +90,9 @@ export function Repair() {
               { key: "ticketNumber", header: "Repair", render: (ticket) => <Link className="font-semibold text-[var(--primary)]" to={`/repair/${ticket.id}`}>{ticketLabel(ticket)}</Link> },
               { key: "customer", header: "Customer", render: (ticket) => ticket.customer?.fullName || ticket.customerId },
               { key: "device", header: "Device", render: (ticket) => ticket.items?.[0] ? `${ticket.items[0].brand || ""} ${ticket.items[0].model || ""}`.trim() || ticket.items[0].itemType : "Device" },
-              { key: "status", header: "Status", render: (ticket) => <StatusBadge status={ticket.status} /> },
               { key: "priority", header: "Priority" },
               { key: "assigned", header: "Assigned Technician", render: (ticket) => ticket.assignedTechnicianName || "Unassigned" },
-              { key: "paymentStatus", header: "Payment Status", render: (ticket) => <StatusBadge status={ticket.paymentStatus} /> },
-              { key: "custody", header: "Current Custody Holder", render: (ticket) => <StatusBadge status={ticket.currentHolderType || "RECEPTION"} /> },
-              { key: "next", header: "Next Step", render: (ticket) => <NextRepairStep ticket={ticket} /> },
+              { key: "next", header: "Action", render: (ticket) => <NextRepairStep ticket={ticket} /> },
             ]}
           />
         </CardContent>

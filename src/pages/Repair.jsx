@@ -87,7 +87,7 @@ export function Repair() {
             emptyTitle="No technician reports"
             emptyDescription="Once a technician completes and submits a repair report from their workspace, it will appear here for review."
             columns={[
-              { key: "ticketNumber", header: "Repair", render: (ticket) => <Link className="font-semibold text-[var(--primary)]" to={`/repair/${ticket.id}`}>{ticketLabel(ticket)}</Link> },
+              { key: "ticketNumber", header: "Repair", render: (ticket) => <Link className="font-semibold text-[var(--primary)]" to={`/repair?ticketId=${ticket.id}`}>{ticketLabel(ticket)}</Link> },
               { key: "customer", header: "Customer", render: (ticket) => ticket.customer?.fullName || ticket.customerId },
               { key: "device", header: "Device", render: (ticket) => ticket.items?.[0] ? `${ticket.items[0].brand || ""} ${ticket.items[0].model || ""}`.trim() || ticket.items[0].itemType : "Device" },
               { key: "priority", header: "Priority" },

@@ -590,108 +590,130 @@ function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
   }
 
   const technicianName = getReportTechnicianName(ticket, partsUsage);
+  const partsTotal = getPartsTotal(partsUsage);
+  const technicianReport = ticket.diagnosis || ticket.workPerformed || ticket.repairNotes || "";
+  const extraCostNum = Number(ticket.extraCost || 0);
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <PageHeader
           title="Technician Report"
           description="Review technician work, used item parts, and final repair cost before billing."
         />
         <Link to="/repair">
-          <Button type="button" variant="secondary">← Back to Technician Report</Button>
+          <Button type="button" variant="secondary" className="h-9 font-bold">
+            ← Back to Technician Report
+          </Button>
         </Link>
       </div>
 
-      <Card className="border-l-4 border-l-[var(--primary)]">
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-5">
-            <SummaryBlock label="Ticket ID" value={ticketLabel(ticket)} />
-            <SummaryBlock label="Technician Name" value={technicianName} />
-            <SummaryBlock label="Status" value={<StatusBadge status={ticket.status} />} />
-            <SummaryBlock label="Extra Cost" value={formatCurrency(ticket.extraCost)} />
-            <SummaryBlock label="Parts Total" value={formatCurrency(getPartsTotal(partsUsage))} />
+      {/* SINGLE UNIFIED TECHNICIAN REPORT CARD */}
+      <Card className="border border-slate-200 shadow-sm overflow-hidden rounded-xl">
+        <CardHeader className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="rounded-lg bg-[#1769aa] px-3 py-1 text-xs font-black text-white tracking-wide">
+              {ticketLabel(ticket)}
+            </span>
+            {ticket.customer?.fullName && (
+              <span className="text-sm font-bold text-slate-800">
+                Customer: {ticket.customer.fullName}
+              </span>
+            )}
           </div>
-          <div className="mt-4 flex justify-end">
+          <div className="flex items-center gap-3">
+            <StatusBadge status={ticket.status} />
             <Link to={`/billing?ticketId=${ticket.id}`}>
-              <Button type="button">Go to Billing / Invoicing</Button>
+              <Button type="button" className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-4">
+                Go to Billing / Invoicing →
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-6 space-y-6">
+          {/* Summary Grid */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+            <SummaryBlock label="Technician Name" value={technicianName} />
+            <SummaryBlock label="Extra Cost" value={formatCurrency(ticket.extraCost)} />
+            <SummaryBlock label="Used Parts Total" value={formatCurrency(partsTotal)} />
+            <SummaryBlock label="Total Repair Cost" value={formatCurrency(extraCostNum + partsTotal)} />
+          </div>
+
+          {/* Technician Diagnosis & Execution Notes */}
+          <div className="space-y-2">
+            <label className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+              Technician Report / Diagnosis
+            </label>
+            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-900 whitespace-pre-wrap">
+              {technicianReport || "No technician report submitted yet."}
+            </div>
+          </div>
+
+          {/* Extra Cost Reason */}
+          {extraCostNum > 0 && (
+            <div className="space-y-2">
+              <label className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+                Why Extra Cost? ({formatCurrency(extraCostNum)})
+              </label>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm font-semibold text-amber-950">
+                {ticket.extraCostReason || "Additional technician charge"}
+              </div>
+            </div>
+          )}
+
+          {/* Used Item Parts Table */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+                Used Item Parts
+              </label>
+              <span className="text-xs font-bold text-slate-700">Total: {formatCurrency(partsTotal)}</span>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 overflow-hidden">
+              {partsUsage.length ? (
+                <Table>
+                  <thead>
+                    <tr>
+                      <Th>Part</Th>
+                      <Th>Technician</Th>
+                      <Th>Qty</Th>
+                      <Th>Cost</Th>
+                      <Th>Used At</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partsUsage.map((usage, index) => (
+                      <tr key={usage.id || index} className="hover:bg-slate-50/50">
+                        <Td className="font-bold text-slate-900">{usage.inventoryItem?.partName || usage.partName || usage.partSku || "Part"}</Td>
+                        <Td>{usage.technician?.fullName || usage.technician?.name || technicianName}</Td>
+                        <Td className="font-semibold">{String(usage.quantity || 1)}</Td>
+                        <Td className="font-bold text-slate-900">{formatCurrency(usage.totalCost || Number(usage.quantity || 0) * Number(usage.unitCost || 0))}</Td>
+                        <Td className="text-xs text-slate-500">{formatDate(usage.usedAt || usage.createdAt)}</Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </Table>
+              ) : (
+                <div className="p-4 text-center text-xs text-slate-400 italic">
+                  No inventory parts were consumed for this repair ticket.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer Action */}
+          <div className="pt-2 flex justify-end border-t border-slate-100">
+            <Link to={`/billing?ticketId=${ticket.id}`}>
+              <Button type="button" className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-sm h-10 px-5">
+                Go to Billing / Invoicing →
+              </Button>
             </Link>
           </div>
         </CardContent>
       </Card>
-
-      <TechnicianReportPanel ticket={{ ...ticket, assignedTechnicianName: technicianName }} partsUsage={partsUsage} />
     </div>
-  );
-}
-
-function TechnicianReportPanel({ ticket, partsUsage = [] }) {
-  if (!ticket?.id) {
-    return null;
-  }
-
-  const partsTotal = getPartsTotal(partsUsage);
-  const technicianReport = ticket.diagnosis || ticket.workPerformed || ticket.repairNotes || "";
-
-  return (
-    <Card>
-      <CardContent>
-        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-black text-slate-950">Technician Report</h3>
-            <p className="mt-1 text-sm text-[var(--muted)]">
-              Read-only repair report and used item parts submitted for this ticket.
-            </p>
-          </div>
-          <StatusBadge status={ticket.status} />
-        </div>
-
-        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase text-slate-500">Technician Report</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm font-semibold text-slate-900">
-            {technicianReport || "No technician report submitted yet."}
-          </p>
-        </div>
-
-        <div className="mt-4 grid gap-4 md:grid-cols-[220px_1fr]">
-          <SummaryBlock label="Extra Cost" value={formatCurrency(ticket.extraCost)} />
-          <SummaryBlock label="Why Extra Cost?" value={ticket.extraCostReason || (Number(ticket.extraCost || 0) > 0 ? "Additional technician charge" : "N/A")} />
-        </div>
-
-        <div className="mt-4 rounded-md border border-slate-200">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-3">
-            <p className="text-sm font-semibold text-slate-800">Used Item Parts</p>
-            <p className="text-sm font-bold text-slate-950">{formatCurrency(partsTotal)}</p>
-          </div>
-          {partsUsage.length ? (
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Part</Th>
-                  <Th>Technician</Th>
-                  <Th>Qty</Th>
-                  <Th>Cost</Th>
-                  <Th>Used At</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {partsUsage.map((usage, index) => (
-                  <tr key={usage.id || index}>
-                    <Td>{usage.inventoryItem?.partName || usage.partName || usage.partSku || "Part"}</Td>
-                    <Td>{usage.technician?.fullName || usage.technician?.name || "Technician"}</Td>
-                    <Td>{String(usage.quantity)}</Td>
-                    <Td>{formatCurrency(usage.totalCost || Number(usage.quantity || 0) * Number(usage.unitCost || 0))}</Td>
-                    <Td>{formatDate(usage.usedAt || usage.createdAt)}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          ) : (
-            <p className="p-3 text-sm text-[var(--muted)]">No consumed parts recorded yet.</p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

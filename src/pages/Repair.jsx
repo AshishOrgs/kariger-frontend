@@ -26,12 +26,22 @@ export function Repair() {
     staleTime: 2 * 60_000, // 2 minutes for repair list
   });
   const tickets = unwrapArray(data, ["tickets"]);
+  const reportSubmittedStatuses = ["READY_FOR_REVIEW", "READY_FOR_DELIVERY", "DELIVERED", "CLOSED"];
+  const isTechnicianReportSubmitted = (ticket) => {
+    if (!ticket) return false;
+    if (reportSubmittedStatuses.includes(ticket.status)) return true;
+    if (ticket.diagnosis || (ticket.laborCost && Number(ticket.laborCost) > 0)) return true;
+    return false;
+  };
+
   // Derive assigned technician name directly from ticket.assignments embedded in list response
-  // No per-ticket API calls needed — avoids N+1 waterfall
-  const ticketsWithWorkflow = tickets.map((ticket) => ({
-    ...ticket,
-    assignedTechnicianName: ticket.assignedTechnicianName || getAssignedTechnicianName(ticket),
-  }));
+  // Only include tickets where a technician report has been submitted
+  const ticketsWithWorkflow = tickets
+    .filter(isTechnicianReportSubmitted)
+    .map((ticket) => ({
+      ...ticket,
+      assignedTechnicianName: ticket.assignedTechnicianName || getAssignedTechnicianName(ticket),
+    }));
   const requestedTicketId = searchParams.get("ticketId") || "";
   const workflowTicket = ticketsWithWorkflow.find((ticket) => ticket.id === requestedTicketId) || null;
   const selectedTicketId = requestedTicketId;
@@ -63,7 +73,7 @@ export function Repair() {
       <PageHeader title="Technician Report" description="Technician execution workspace for status, timeline, notes, progress, device condition, and quality review." />
       <Card className="mb-4">
         <CardContent className="grid gap-3 md:grid-cols-[1fr_220px]">
-          <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input className="pl-9" placeholder="Search repairs" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
+          <div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><Input className="pl-9" placeholder="Search reports" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
           <Select value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{ticketStatuses.map((item) => <option key={item} value={item}>{item}</option>)}</Select>
         </CardContent>
       </Card>
@@ -72,8 +82,8 @@ export function Repair() {
           <DataTable
             rows={ticketsWithWorkflow}
             searchable={false}
-            emptyTitle="No repair tickets"
-            emptyDescription="Create a repair ticket to begin the workflow."
+            emptyTitle="No technician reports"
+            emptyDescription="Once a technician completes and submits a repair report from their workspace, it will appear here for review."
             columns={[
               { key: "ticketNumber", header: "Repair", render: (ticket) => <Link className="font-semibold text-[var(--primary)]" to={`/repair/${ticket.id}`}>{ticketLabel(ticket)}</Link> },
               { key: "customer", header: "Customer", render: (ticket) => ticket.customer?.fullName || ticket.customerId },

@@ -532,12 +532,16 @@ function NextRepairStep({ ticket }) {
   const status = ticket.status;
 
   if (["DELIVERED", "CANCELLED", "CLOSED"].includes(status)) {
-    return <span className="text-sm text-[var(--muted)]">{status}</span>;
+    return <span className="text-xs font-semibold text-slate-400">{status}</span>;
   }
 
   return (
     <Link to={`/repair?ticketId=${ticket.id}`}>
-      <Button size="sm" type="button" className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold">
+      <Button
+        size="sm"
+        type="button"
+        className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-7 px-2.5 whitespace-nowrap shadow-sm"
+      >
         Technician Report
       </Button>
     </Link>

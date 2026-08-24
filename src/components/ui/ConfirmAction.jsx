@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, isValidElement, cloneElement } from "react";
 import { Button } from "@/components/ui/Button";
 
 export function ConfirmAction({
@@ -12,13 +12,39 @@ export function ConfirmAction({
 }) {
   const [open, setOpen] = useState(false);
 
+  const handleTrigger = (e) => {
+    e?.stopPropagation?.();
+    if (!disabled) {
+      setOpen(true);
+    }
+  };
+
+  const isButtonElement = isValidElement(children) && (children.type === Button || children.type === "button");
+
+  const trigger = isButtonElement ? (
+    cloneElement(children, {
+      onClick: (e) => {
+        children.props.onClick?.(e);
+        handleTrigger(e);
+      },
+      disabled: disabled || children.props.disabled,
+    })
+  ) : (
+    <Button
+      variant={variant}
+      disabled={disabled}
+      onClick={handleTrigger}
+      type="button"
+    >
+      {children || confirmLabel}
+    </Button>
+  );
+
   return (
     <>
-      <Button className="w-full" variant={variant} disabled={disabled} onClick={() => setOpen(true)} type="button">
-        {children}
-      </Button>
+      {trigger}
       {open ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
+        <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4" onClick={(e) => e.stopPropagation()}>
           <div className="w-full max-w-md rounded-lg border border-[var(--border)] bg-white p-5 shadow-xl">
             <h2 className="text-lg font-semibold">{title}</h2>
             <p className="mt-2 text-sm text-[var(--muted)]">{description}</p>
@@ -41,3 +67,4 @@ export function ConfirmAction({
     </>
   );
 }
+

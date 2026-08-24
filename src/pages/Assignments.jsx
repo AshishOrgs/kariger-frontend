@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -27,10 +27,11 @@ export function Assignments() {
   const [lastAssignedTicketId, setLastAssignedTicketId] = useState("");
   const [assignmentMode, setAssignmentMode] = useState("assign");
   const [activeQueueTab, setActiveQueueTab] = useState("pending");
-  const queueQuery = useQuery({ queryKey: ["assignments", "queue"], queryFn: () => assignmentsApi.queue() });
-  const dashboardQuery = useQuery({ queryKey: ["assignments", "dashboard"], queryFn: () => assignmentsApi.dashboard() });
-  const ticketsQuery = useQuery({ queryKey: ["repair"], queryFn: () => repairApi.list() });
-  const staffQuery = useQuery({ queryKey: ["staff", "assignment-technicians"], queryFn: staffApi.list });
+  const queueQuery = useQuery({ queryKey: ["assignments", "queue"], queryFn: () => assignmentsApi.queue(), staleTime: 2 * 60_000 });
+  const dashboardQuery = useQuery({ queryKey: ["assignments", "dashboard"], queryFn: () => assignmentsApi.dashboard(), staleTime: 3 * 60_000 });
+  // Reuse shared repair list cache — same key used by Repair/Estimates/Billing/Handover
+  const ticketsQuery = useQuery({ queryKey: ["repair", "", ""], queryFn: () => repairApi.list({ limit: 50 }), staleTime: 2 * 60_000 });
+  const staffQuery = useQuery({ queryKey: ["staff", "assignment-technicians"], queryFn: staffApi.list, staleTime: 5 * 60_000 });
   const queue = unwrapArray(queueQuery.data, ["assignments", "tickets"]);
   const tickets = unwrapArray(ticketsQuery.data, ["tickets"]);
   const branchTechnicians = (staffQuery.data?.data?.staff || [])
@@ -60,18 +61,8 @@ export function Assignments() {
     enabled: Boolean(activeTicketId),
   });
   const history = unwrapArray(historyQuery.data, ["assignments", "history", "logs"]);
-  const assignmentQueries = useQueries({
-    queries: tickets.map((ticket) => ({
-      queryKey: ["assignments", ticket.id, "candidate-history"],
-      queryFn: () => repairApi.assignments(ticket.id),
-      enabled: Boolean(ticket.id),
-    })),
-  });
   const assignmentRecordsByTicket = new Map(
-    tickets.map((ticket, index) => [
-      ticket.id,
-      unwrapArray(assignmentQueries[index]?.data, ["assignments", "history", "logs"]),
-    ])
+    tickets.map((ticket) => [ticket.id, ticket.assignments || []])
   );
   const ticketHasActiveAssignment = (ticket) =>
     Boolean(ticket.assignedTechnicianName && ticket.assignedTechnicianName !== "Unassigned") ||

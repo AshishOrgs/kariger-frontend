@@ -1,4 +1,4 @@
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,20 +16,15 @@ const updatableJobStatuses = ["DISPATCHED", "IN_PROGRESS", "WAITING_VENDOR_QUOTE
 
 export function Vendors() {
   const queryClient = useQueryClient();
-  const vendorsQuery = useQuery({ queryKey: ["vendors"], queryFn: () => vendorsApi.list() });
-  const jobsQuery = useQuery({ queryKey: ["vendors", "jobs"], queryFn: () => vendorsApi.jobs() });
-  const ticketsQuery = useQuery({ queryKey: ["repair"], queryFn: () => repairApi.list({ limit: 100 }) });
+  const vendorsQuery = useQuery({ queryKey: ["vendors"], queryFn: () => vendorsApi.list(), staleTime: 5 * 60_000 });
+  const jobsQuery = useQuery({ queryKey: ["vendors", "jobs"], queryFn: () => vendorsApi.jobs(), staleTime: 2 * 60_000 });
+  // Reuse shared repair list cache
+  const ticketsQuery = useQuery({ queryKey: ["repair", "", ""], queryFn: () => repairApi.list({ limit: 50 }), staleTime: 2 * 60_000 });
   const vendors = unwrapArray(vendorsQuery.data, ["vendors"]);
   const jobs = unwrapArray(jobsQuery.data, ["vendorRepairJobs", "jobs"]);
   const tickets = unwrapArray(ticketsQuery.data, ["tickets"]);
-  const custodyQueries = useQueries({
-    queries: tickets.map((ticket) => ({
-      queryKey: ["repair", ticket.id, "current-custody"],
-      queryFn: () => repairApi.currentCustody(ticket.id),
-      enabled: Boolean(ticket.id),
-    })),
-  });
-  const ticketsWithCustody = tickets.map((ticket, index) => mergeTicketCustody(ticket, custodyQueries[index]?.data));
+  // currentHolderType is embedded in the list response — no per-ticket custody calls needed
+  const ticketsWithCustody = tickets;
   const dispatchableTickets = ticketsWithCustody.filter((ticket) => dispatchableStatuses.includes(ticket.status) && ticket.currentHolderType === "TECHNICIAN");
   const updatableJobs = jobs.filter((job) => updatableJobStatuses.includes(job.status));
   const receivableJobs = jobs.filter((job) => job.status === "COMPLETED");

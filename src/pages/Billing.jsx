@@ -25,8 +25,9 @@ export function Billing() {
   const [discountAmount, setDiscountAmount] = useState(0);
   const [notes, setNotes] = useState("");
 
-  const invoicesQuery = useQuery({ queryKey: ["billing", "invoices"], queryFn: () => billingApi.invoices() });
-  const ticketsQuery = useQuery({ queryKey: ["repair"], queryFn: () => repairApi.list({ limit: 100 }) });
+  const invoicesQuery = useQuery({ queryKey: ["billing", "invoices"], queryFn: () => billingApi.invoices(), staleTime: 2 * 60_000 });
+  // Reuse shared repair list cache — same key used by Repair/Estimates/Handover pages
+  const ticketsQuery = useQuery({ queryKey: ["repair", "", ""], queryFn: () => repairApi.list({ limit: 50 }), staleTime: 2 * 60_000 });
   const invoices = unwrapArray(invoicesQuery.data, ["invoices"]);
   const tickets = unwrapArray(ticketsQuery.data, ["tickets"]);
 

@@ -69,10 +69,28 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+import { scheduleProactiveRefresh } from "./tokenManager";
+
+// ─── Token refresh state ──────────────────────────────────────────────────────
+// Ensures only ONE refresh call fires even if multiple requests 401 at once.
+// All concurrent 401 requests are queued and replayed after the single refresh.
+let isRefreshing = false;
+let refreshQueue = []; // { resolve, reject }[]
+
+function processQueue(error, token = null) {
+  refreshQueue.forEach((entry) => {
+    if (error) entry.reject(error);
+    else entry.resolve(token);
+  });
+  refreshQueue = [];
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Not a 401, or already retried, or no request — propagate immediately
     if (error.response?.status !== 401 || !originalRequest || originalRequest._retry) {
       return Promise.reject(error);
     }
@@ -83,19 +101,45 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // If a refresh is already in progress, queue this request to replay after
+    if (isRefreshing) {
+      return new Promise((resolve, reject) => {
+        refreshQueue.push({ resolve, reject });
+      }).then((newToken) => {
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return api(originalRequest);
+      }).catch((err) => Promise.reject(err));
+    }
+
+    // This request is first — take the refresh lock
+    originalRequest._retry = true;
+    isRefreshing = true;
+
     try {
-      originalRequest._retry = true;
       const response = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
       const authData = response.data.data;
       persistSession(authData.user, authData.tokens);
-      originalRequest.headers.Authorization = `Bearer ${authData.tokens.accessToken}`;
+      const newToken = authData.tokens.accessToken;
+
+      // Update axios default + replay queued requests
+      api.defaults.headers.common.Authorization = `Bearer ${newToken}`;
+      originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      processQueue(null, newToken);
+
+      // Schedule next proactive refresh for the new token
+      scheduleProactiveRefresh();
+
       return api(originalRequest);
     } catch (refreshError) {
+      processQueue(refreshError, null);
       clearSession();
       return Promise.reject(refreshError);
+    } finally {
+      isRefreshing = false;
     }
   }
 );
+
 
 export async function get(url, params) {
   const response = await api.get(url, { params });

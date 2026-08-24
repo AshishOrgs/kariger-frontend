@@ -1,4 +1,4 @@
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { BadgePlus, Calculator, Search, ArrowRight } from "lucide-react";
 import { useState } from "react";
@@ -13,33 +13,25 @@ import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow
 import { repairApi } from "@/services/modules";
 import { formatCurrency, formatDate, unwrapArray } from "@/utils/cn";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
-import { getAllowedRepairTransitions, isActiveAssignment, ticketStatuses } from "@/utils/workflow";
+import { getAllowedRepairTransitions, isActiveAssignment, isTerminalTicketStatus, ticketStatuses } from "@/utils/workflow";
 import { ticketLabel } from "@/utils/ticketLabel";
 
 export function Repair() {
   const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const { data } = useQuery({ queryKey: ["repair", search, status], queryFn: () => repairApi.list({ search: search || undefined, status: status || undefined }) });
+  const { data } = useQuery({
+    queryKey: ["repair", search, status],
+    queryFn: () => repairApi.list({ search: search || undefined, status: status || undefined }),
+    staleTime: 2 * 60_000, // 2 minutes for repair list
+  });
   const tickets = unwrapArray(data, ["tickets"]);
-  const custodyQueries = useQueries({
-    queries: tickets.map((ticket) => ({
-      queryKey: ["repair", ticket.id, "current-custody"],
-      queryFn: () => repairApi.currentCustody(ticket.id),
-      enabled: Boolean(ticket.id),
-    })),
-  });
-  const assignmentQueries = useQueries({
-    queries: tickets.map((ticket) => ({
-      queryKey: ["repair", ticket.id, "assignments"],
-      queryFn: () => repairApi.assignments(ticket.id),
-      enabled: Boolean(ticket.id),
-    })),
-  });
-  const ticketsWithWorkflow = tickets.map((ticket, index) => {
-    const withCustody = mergeTicketCustody(ticket, custodyQueries[index]?.data);
-    return mergeTicketAssignment(withCustody, assignmentQueries[index]?.data);
-  });
+  // Derive assigned technician name directly from ticket.assignments embedded in list response
+  // No per-ticket API calls needed — avoids N+1 waterfall
+  const ticketsWithWorkflow = tickets.map((ticket) => ({
+    ...ticket,
+    assignedTechnicianName: ticket.assignedTechnicianName || getAssignedTechnicianName(ticket),
+  }));
   const requestedTicketId = searchParams.get("ticketId") || "";
   const workflowTicket = ticketsWithWorkflow.find((ticket) => ticket.id === requestedTicketId) || null;
   const selectedTicketId = requestedTicketId;
@@ -137,9 +129,12 @@ export function CreateRepair() {
     },
   });
 
+  // Reuse the shared repair list cache (same queryKey as Repair page) to avoid a
+  // duplicate API call when navigating from dashboard → repair intake.
   const pendingQuery = useQuery({
-    queryKey: ["repair", "pending-estimates"],
-    queryFn: () => repairApi.list({ limit: 100 }),
+    queryKey: ["repair", "", ""],
+    queryFn: () => repairApi.list({ limit: 50 }),
+    staleTime: 2 * 60_000,
   });
 
   const allTickets = unwrapArray(pendingQuery.data, ["tickets"]);
@@ -235,8 +230,9 @@ export function CreateRepair() {
                   const hasAssignment = (t.assignments || []).some(isActiveAssignment) || Boolean(t.assignedTechnicianName);
 
                   return (
-                    <div key={t.id} className="py-3 flex flex-wrap items-center justify-between gap-3">
-                      <div>
+                    <div key={t.id} className="py-3 border-b border-slate-100 last:border-0">
+                      {/* Ticket info row */}
+                      <div className="mb-3">
                         <p className="font-bold text-slate-900 text-sm">
                           <button
                             type="button"
@@ -258,19 +254,20 @@ export function CreateRepair() {
                           <p className="text-xs text-slate-400">Customer: {t.customer.fullName}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      {/* Step buttons — full width on mobile, side by side on sm+ */}
+                      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
                         {/* Step 1: Estimate */}
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 1</span>
                           {hasEstimate ? (
-                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200">
-                              ✓ Estimate Created
+                            <span className="w-full inline-flex items-center justify-center gap-1 rounded-md bg-emerald-50 px-2 py-2 text-xs font-bold text-emerald-700 border border-emerald-200 text-center">
+                              ✓ Estimate Done
                             </span>
                           ) : (
                             <Button
                               size="sm"
                               type="button"
-                              className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-3"
+                              className="w-full bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-2"
                               onClick={() => {
                                 setEstimateTicket(t);
                                 setOpenEstimateModal(true);
@@ -280,18 +277,19 @@ export function CreateRepair() {
                             </Button>
                           )}
                         </div>
-                        <ArrowRight className="h-4 w-4 text-slate-300 shrink-0" />
+                        {/* Arrow — hidden on mobile */}
+                        <ArrowRight className="hidden sm:block h-4 w-4 text-slate-300 shrink-0" />
                         {/* Step 2: Assign Technician */}
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 2</span>
-                          <Link to={`/assignments?ticketId=${t.id}`}>
+                          <Link to={`/assignments?ticketId=${t.id}`} className="w-full">
                             <Button
                               size="sm"
                               type="button"
                               className={
                                 hasEstimate && !hasAssignment
-                                  ? "bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-3 animate-pulse"
-                                  : "border border-slate-300 text-slate-600 font-bold text-xs h-9 px-3 hover:bg-slate-50"
+                                  ? "w-full bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-2 animate-pulse"
+                                  : "w-full border border-slate-300 text-slate-600 font-bold text-xs h-9 px-2 hover:bg-slate-50"
                               }
                               variant={hasEstimate && !hasAssignment ? "default" : "secondary"}
                             >
@@ -303,6 +301,8 @@ export function CreateRepair() {
                     </div>
                   );
                 })}
+
+
               </div>
             ) : (
               <p className="text-xs text-slate-400 italic text-center py-4">

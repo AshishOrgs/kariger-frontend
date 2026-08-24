@@ -139,19 +139,22 @@ export function Dashboard() {
 
   const repairQuery = useQuery({
     queryKey: ["repairs", "dashboard-summary"],
-    queryFn: () => repairApi.list({ limit: 100 }),
+    queryFn: () => repairApi.list({ limit: 20 }),
+    staleTime: 3 * 60_000, // 3 minutes — dashboard counters don't need live updates
     retry: 1,
   });
 
   const inventoryQuery = useQuery({
     queryKey: ["inventory", "dashboard-summary"],
-    queryFn: () => inventoryApi.list({ limit: 100 }),
+    queryFn: () => inventoryApi.list({ limit: 20 }),
+    staleTime: 3 * 60_000,
     retry: 1,
   });
 
   const billingQuery = useQuery({
     queryKey: ["billing", "dashboard-summary"],
-    queryFn: () => billingApi.invoices({ limit: 100 }),
+    queryFn: () => billingApi.invoices({ limit: 20 }),
+    staleTime: 3 * 60_000,
     retry: 1,
   });
 

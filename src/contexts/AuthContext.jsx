@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/contexts/ToastContext";
 import { authApi } from "@/services/modules";
 import { clearSession, getAccessToken, getStoredUser, persistSession, updateStoredUser } from "@/services/session";
+import { scheduleProactiveRefresh } from "@/services/tokenManager";
 import { PERMISSIONS, hasAllPermissions, hasAnyPermission } from "@/utils/permissions";
 
 const AuthContext = createContext(null);
@@ -98,6 +99,7 @@ export function AuthProvider({ children }) {
       .then((response) => {
         updateStoredUser(response.data.user);
         setUser(response.data.user);
+        scheduleProactiveRefresh(); // start proactive token refresh on boot
       })
       .catch(() => {
         clearSession();
@@ -133,6 +135,7 @@ export function AuthProvider({ children }) {
     mutationFn: authApi.login,
     onSuccess: (response) => {
       persistSession(response.data.user, response.data.tokens);
+      scheduleProactiveRefresh(); // start proactive refresh after login
       setUser(response.data.user);
       queryClient.invalidateQueries({ queryKey: ["subscription-current"] });
       const user = response.data.user;

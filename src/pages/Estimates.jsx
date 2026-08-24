@@ -42,7 +42,8 @@ export function Estimates() {
   const [searchParams] = useSearchParams();
   const preselectedTicketId = searchParams.get("ticketId") || "";
   const [selectedTicketId, setSelectedTicketId] = useState(preselectedTicketId);
-  const { data, isLoading } = useQuery({ queryKey: ["repair", "estimate-candidates"], queryFn: () => repairApi.list({ limit: 100 }) });
+  // Reuse shared repair list cache to avoid duplicate API call
+  const { data, isLoading } = useQuery({ queryKey: ["repair", "", ""], queryFn: () => repairApi.list({ limit: 50 }), staleTime: 2 * 60_000 });
   const estimateStatuses = ["RECEIVED", "DIAGNOSING", "ESTIMATE_PENDING"];
   const allTickets = unwrapArray(data, ["tickets"]);
   const tickets = allTickets.filter((ticket) => estimateStatuses.includes(ticket.status));
@@ -66,7 +67,7 @@ export function Estimates() {
   const mutation = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.createEstimate(ticketId, payload),
     successMessage: "Estimate created and marked done.",
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["repair", "estimate-candidates"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["repair"] }),
   });
   const createdEstimate = mutation.data?.data?.estimate;
   const visibleCreatedEstimate = createdEstimate;

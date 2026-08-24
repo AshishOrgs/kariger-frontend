@@ -1,4 +1,4 @@
-import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
@@ -21,17 +21,11 @@ export function Handover() {
   const [searchParams] = useSearchParams();
   const [selectedTicketId, setSelectedTicketId] = useState(searchParams.get("ticketId") || "");
   const [lastHandoverTicketId, setLastHandoverTicketId] = useState("");
-  const { data } = useQuery({ queryKey: ["repair"], queryFn: () => repairApi.list({ limit: 100 }) });
-  const vendorsQuery = useQuery({ queryKey: ["vendors"], queryFn: () => vendorsApi.list() });
+  const { data } = useQuery({ queryKey: ["repair", "", ""], queryFn: () => repairApi.list({ limit: 50 }), staleTime: 2 * 60_000 });
+  const vendorsQuery = useQuery({ queryKey: ["vendors"], queryFn: () => vendorsApi.list(), staleTime: 5 * 60_000 });
+  // Use custody data embedded in list response — no N+1 per-ticket calls needed
   const tickets = unwrapArray(data, ["tickets"]);
-  const custodyQueries = useQueries({
-    queries: tickets.map((ticket) => ({
-      queryKey: ["repair", ticket.id, "current-custody"],
-      queryFn: () => repairApi.currentCustody(ticket.id),
-      enabled: Boolean(ticket.id),
-    })),
-  });
-  const ticketsWithCustody = tickets.map((ticket, index) => mergeTicketCustody(ticket, custodyQueries[index]?.data));
+  const ticketsWithCustody = tickets; // currentHolderType is included in list response
   const vendors = unwrapArray(vendorsQuery.data, ["vendors"]);
   const activeTicketId = selectedTicketId || ticketsWithCustody[0]?.id || "";
   const activeTicket = ticketsWithCustody.find((ticket) => ticket.id === activeTicketId);

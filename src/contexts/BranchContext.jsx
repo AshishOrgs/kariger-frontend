@@ -17,6 +17,7 @@ export function BranchProvider({ children }) {
     queryKey: ["branches"],
     queryFn: branchesApi.list,
     enabled: hasBranchVisibility,
+    staleTime: 10 * 60_000, // branches rarely change during a session
   });
 
   useEffect(() => {

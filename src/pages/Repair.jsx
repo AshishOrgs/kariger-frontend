@@ -244,9 +244,9 @@ export function CreateRepair() {
                   const hasAssignment = (t.assignments || []).some(isActiveAssignment) || Boolean(t.assignedTechnicianName);
 
                   return (
-                    <div key={t.id} className="py-3 border-b border-slate-100 last:border-0">
-                      {/* Ticket info row */}
-                      <div className="mb-3">
+                    <div key={t.id} className="py-3 border-b border-slate-100 last:border-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      {/* Ticket info */}
+                      <div className="min-w-0 flex-1">
                         <p className="font-bold text-slate-900 text-sm">
                           <button
                             type="button"
@@ -263,25 +263,25 @@ export function CreateRepair() {
                             {ticketLabel(t)}
                           </button>
                         </p>
-                        <p className="text-xs text-slate-600 mt-0.5 font-medium">{t.title}</p>
+                        <p className="text-xs text-slate-600 mt-0.5 font-medium truncate">{t.title}</p>
                         {t.customer?.fullName && (
                           <p className="text-xs text-slate-400">Customer: {t.customer.fullName}</p>
                         )}
                       </div>
-                      {/* Step buttons — full width on mobile, side by side on sm+ */}
-                      <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
+                      {/* Step buttons — horizontally inline with ticket info */}
+                      <div className="flex items-center gap-2 shrink-0">
                         {/* Step 1: Estimate */}
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 1</span>
                           {hasEstimate ? (
-                            <span className="w-full inline-flex items-center justify-center gap-1 rounded-md bg-emerald-50 px-2 py-2 text-xs font-bold text-emerald-700 border border-emerald-200 text-center">
+                            <span className="inline-flex items-center justify-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 text-center whitespace-nowrap">
                               ✓ Estimate Done
                             </span>
                           ) : (
                             <Button
                               size="sm"
                               type="button"
-                              className="w-full bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-2"
+                              className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-8 px-3 whitespace-nowrap"
                               onClick={() => {
                                 setEstimateTicket(t);
                                 setOpenEstimateModal(true);
@@ -291,19 +291,19 @@ export function CreateRepair() {
                             </Button>
                           )}
                         </div>
-                        {/* Arrow — hidden on mobile */}
-                        <ArrowRight className="hidden sm:block h-4 w-4 text-slate-300 shrink-0" />
+                        {/* Arrow */}
+                        <ArrowRight className="h-4 w-4 text-slate-300 shrink-0 mt-3" />
                         {/* Step 2: Assign Technician */}
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 2</span>
-                          <Link to={`/assignments?ticketId=${t.id}`} className="w-full">
+                          <Link to={`/assignments?ticketId=${t.id}`}>
                             <Button
                               size="sm"
                               type="button"
                               className={
                                 hasEstimate && !hasAssignment
-                                  ? "w-full bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-2 animate-pulse"
-                                  : "w-full border border-slate-300 text-slate-600 font-bold text-xs h-9 px-2 hover:bg-slate-50"
+                                  ? "bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-8 px-3 animate-pulse whitespace-nowrap"
+                                  : "border border-slate-300 text-slate-600 font-bold text-xs h-8 px-3 hover:bg-slate-50 whitespace-nowrap"
                               }
                               variant={hasEstimate && !hasAssignment ? "default" : "secondary"}
                             >

@@ -11,7 +11,7 @@ import { Table, Td, Th } from "@/components/ui/Table";
 import { CustodyTimeline } from "@/components/ui/CustodyTimeline";
 import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { repairApi, vendorsApi } from "@/services/modules";
-import { unwrapArray } from "@/utils/cn";
+import { cn, unwrapArray } from "@/utils/cn";
 import { useNotifyMutation } from "@/hooks/useNotifyMutation";
 import { getValidHandoverTypes } from "@/utils/workflow";
 import { ticketLabel } from "@/utils/ticketLabel";
@@ -21,15 +21,27 @@ export function Handover() {
   const [searchParams] = useSearchParams();
   const [selectedTicketId, setSelectedTicketId] = useState(searchParams.get("ticketId") || "");
   const [lastHandoverTicketId, setLastHandoverTicketId] = useState("");
+  const [activeTab, setActiveTab] = useState("pending");
+
   const { data } = useQuery({ queryKey: ["repair", "", ""], queryFn: () => repairApi.list({ limit: 50 }), staleTime: 2 * 60_000 });
   const vendorsQuery = useQuery({ queryKey: ["vendors"], queryFn: () => vendorsApi.list(), staleTime: 5 * 60_000 });
-  // Use custody data embedded in list response — no N+1 per-ticket calls needed
+
   const tickets = unwrapArray(data, ["tickets"]);
-  const ticketsWithCustody = tickets; // currentHolderType is included in list response
+
+  // Filter ONLY tickets where payment is completed (PAID)
+  const paidTickets = tickets.filter(
+    (t) => t.paymentStatus === "PAID" || (Array.isArray(t.invoices) && t.invoices.some((i) => i.status === "PAID"))
+  );
+
+  const pendingTickets = paidTickets.filter((t) => !["DELIVERED", "CLOSED"].includes(t.status));
+  const completedTickets = paidTickets.filter((t) => ["DELIVERED", "CLOSED"].includes(t.status));
+
+  const visibleTickets = activeTab === "pending" ? pendingTickets : completedTickets;
   const vendors = unwrapArray(vendorsQuery.data, ["vendors"]);
-  const activeTicketId = selectedTicketId || ticketsWithCustody[0]?.id || "";
-  const activeTicket = ticketsWithCustody.find((ticket) => ticket.id === activeTicketId);
+  const activeTicketId = selectedTicketId || visibleTickets[0]?.id || paidTickets[0]?.id || "";
+  const activeTicket = visibleTickets.find((ticket) => ticket.id === activeTicketId) || paidTickets.find((ticket) => ticket.id === activeTicketId);
   const validHandoverTypes = getValidHandoverTypes(activeTicket);
+
   const mutation = useNotifyMutation({
     mutationFn: ({ ticketId, payload }) => repairApi.handover(ticketId, payload),
     successMessage: "Handover recorded successfully.",
@@ -38,6 +50,7 @@ export function Handover() {
       await refreshHandoverWorkflowQueries(queryClient, variables.ticketId);
     },
   });
+
   const closeMutation = useNotifyMutation({
     mutationFn: (ticketId) => repairApi.updateStatus(ticketId, { status: "CLOSED", reason: "Repair delivered and closed from handover workflow." }),
     successMessage: "Repair closed successfully.",
@@ -46,18 +59,100 @@ export function Handover() {
 
   return (
     <OperationsWorkflowPage current="handover" ticket={activeTicket} ticketId={activeTicketId} showSummary={false}>
-      <PageHeader title="Handover" description="Customer delivery confirmation, custody history, and future-ready customer signature and warranty notes." />
+      <PageHeader title="Handover" description="Customer delivery confirmation, custody history, and customer signature and delivery notes." />
+      
       <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
-        <Card><CardHeader><CardTitle>Current Custody</CardTitle></CardHeader><CardContent className="p-0"><Table><thead><tr><Th>Ticket</Th><Th>Status</Th><Th>Current Holder</Th><Th>Current Location</Th></tr></thead><tbody>{ticketsWithCustody.map((ticket) => <tr key={ticket.id}><Td><button className="text-left font-semibold text-[var(--primary)]" type="button" onClick={() => setSelectedTicketId(ticket.id)}>{ticketLabel(ticket)}</button></Td><Td><StatusBadge status={ticket.status} /></Td><Td><StatusBadge status={ticket.currentHolderType || "RECEPTION"} /></Td><Td>{ticket.currentLocation || "Not set"}</Td></tr>)}</tbody></Table>{!ticketsWithCustody.length ? <div className="p-5"><EmptyState title="No repair tickets" description="Create a repair ticket before recording custody handovers." /></div> : null}</CardContent></Card>
+        <Card className="border border-slate-200 shadow-sm rounded-xl overflow-hidden">
+          <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-bold text-slate-900">Handover Queue</CardTitle>
+            </div>
+            {/* Tabs */}
+            <div className="mt-3 flex gap-2 border-b border-slate-200 pb-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("pending")}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-md transition cursor-pointer",
+                  activeTab === "pending"
+                    ? "bg-[#1769aa] text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100"
+                )}
+              >
+                Pending Handovers ({pendingTickets.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("completed")}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-bold rounded-md transition cursor-pointer",
+                  activeTab === "completed"
+                    ? "bg-[#1769aa] text-white shadow-xs"
+                    : "text-slate-600 hover:bg-slate-100"
+                )}
+              >
+                Completed Handovers ({completedTickets.length})
+              </button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            {visibleTickets.length ? (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Ticket</Th>
+                    <Th>Customer</Th>
+                    <Th>Status</Th>
+                    <Th>Current Holder</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTickets.map((ticket) => (
+                    <tr
+                      key={ticket.id}
+                      className={cn(
+                        "hover:bg-slate-50/60 cursor-pointer",
+                        ticket.id === activeTicketId ? "bg-blue-50/40" : ""
+                      )}
+                      onClick={() => setSelectedTicketId(ticket.id)}
+                    >
+                      <Td>
+                        <button className="text-left font-bold text-[#1769aa]" type="button">
+                          {ticketLabel(ticket)}
+                        </button>
+                      </Td>
+                      <Td className="font-semibold text-slate-800">{ticket.customer?.fullName || "Customer"}</Td>
+                      <Td><StatusBadge status={ticket.status} /></Td>
+                      <Td><StatusBadge status={ticket.currentHolderType || "RECEPTION"} /></Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            ) : (
+              <div className="p-6">
+                <EmptyState
+                  title={activeTab === "pending" ? "No pending handovers" : "No completed handovers"}
+                  description={
+                    activeTab === "pending"
+                      ? "Only repair tickets with completed payments appear here for customer delivery."
+                      : "Delivered or closed repairs will appear here in the completed log."
+                  }
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <HandoverForm
           activeTicketId={activeTicketId}
           mutation={mutation}
           onTicketChange={setSelectedTicketId}
-          tickets={ticketsWithCustody}
+          tickets={pendingTickets}
           validTypes={validHandoverTypes}
           vendors={vendors}
         />
       </div>
+
       {lastHandoverTicketId ? (
         <div className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -68,48 +163,47 @@ export function Handover() {
           </div>
         </div>
       ) : null}
+      
       {activeTicketId ? <div className="mt-5"><CustodyTimeline ticketId={activeTicketId} /></div> : null}
     </OperationsWorkflowPage>
   );
 }
 
-function mergeTicketCustody(ticket, custodyData) {
-  const custodyTicket = custodyData?.data?.ticket;
-  const custody = custodyData?.data?.custody;
+function getActiveTechnicianName(ticket, fallbackTicket) {
+  const target = ticket || fallbackTicket;
+  if (!target) return "Unassigned";
+  if (target.assignedTechnicianName) return target.assignedTechnicianName;
 
-  return {
-    ...ticket,
-    currentHolderType: custody?.currentHolderType || custodyTicket?.currentHolderType || ticket.currentHolderType,
-    currentHolderId: custody?.currentHolderId || custodyTicket?.currentHolderId || ticket.currentHolderId,
-    currentLocation: custody?.currentLocation || custodyTicket?.currentLocation || ticket.currentLocation,
-    lastHandoverAt: custody?.lastHandoverAt || custodyTicket?.lastHandoverAt || ticket.lastHandoverAt,
-  };
-}
-
-function getActiveTechnicianName(ticket) {
-  if (!ticket?.assignments) return "Unassigned";
-  const active = ticket.assignments.find(
+  const activeAssignment = (target.assignments || []).find(
     (a) => !a.unassignedAt && ["ASSIGNED", "REASSIGNED", "IN_PROGRESS", "PAUSED", "COMPLETED"].includes(a.status || a.type)
+  ) || target.assignments?.[0];
+
+  const staff = activeAssignment?.assignedTo || activeAssignment?.technician || activeAssignment?.assignedToStaff;
+  return (
+    staff?.fullName ||
+    staff?.name ||
+    activeAssignment?.assignedToName ||
+    target.assignedTo?.fullName ||
+    target.assignedToName ||
+    "Unassigned"
   );
-  if (!active) return "Unassigned";
-  const staff = active.assignedTo || active.technician || active.assignedToStaff;
-  return staff?.fullName || staff?.name || active.assignedToName || "Unassigned";
 }
 
 function HandoverForm({ activeTicketId, mutation, onTicketChange, tickets }) {
   const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState("");
 
-  // Fetch ticket details dynamically to show customer and technician
   const ticketQuery = useQuery({
     queryKey: ["repair-ticket-handover-detail", activeTicketId],
     queryFn: () => repairApi.get(activeTicketId),
     enabled: Boolean(activeTicketId),
   });
-  const ticket = ticketQuery.data?.data?.ticket || ticketQuery.data?.data || null;
+  const ticketDetail = ticketQuery.data?.data?.ticket || ticketQuery.data?.data || null;
+  const activeTicketInList = tickets.find((t) => t.id === activeTicketId);
+  const ticket = ticketDetail || activeTicketInList;
 
-  const customerName = ticket?.customer?.fullName || "Loading...";
-  const technicianName = ticket ? getActiveTechnicianName(ticket) : "Loading...";
+  const customerName = ticket?.customer?.fullName || activeTicketInList?.customer?.fullName || "Loading...";
+  const technicianName = getActiveTechnicianName(ticketDetail, activeTicketInList);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -120,7 +214,7 @@ function HandoverForm({ activeTicketId, mutation, onTicketChange, tickets }) {
         ticketId: activeTicketId,
         payload: {
           type: "RECEPTION_TO_CUSTOMER",
-          receiverName: ticket?.customer?.fullName || "Customer",
+          receiverName: customerName || "Customer",
           notes: notes || undefined,
           metadata: {
             deliveryDate,
@@ -159,7 +253,7 @@ function HandoverForm({ activeTicketId, mutation, onTicketChange, tickets }) {
             </Select>
           </Field>
 
-          {ticket && (
+          {activeTicketId ? (
             <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-100 text-sm">
               <div>
                 <span className="text-slate-500 font-medium">Customer Name:</span>{" "}
@@ -170,7 +264,7 @@ function HandoverForm({ activeTicketId, mutation, onTicketChange, tickets }) {
                 <span className="font-bold text-slate-800">{technicianName}</span>
               </div>
             </div>
-          )}
+          ) : null}
 
           <Field label="Delivery Date">
             <Input
@@ -210,3 +304,4 @@ async function refreshHandoverWorkflowQueries(queryClient, ticketId) {
     queryClient.invalidateQueries({ queryKey: ["repair-ticket-handover-detail", ticketId] }),
   ]);
 }
+

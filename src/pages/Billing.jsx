@@ -218,18 +218,7 @@ export function Billing() {
                   </div>
                 ) : null}
 
-                {ticket && (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50 p-3">
-                    <p className="text-xs font-black uppercase tracking-wider text-blue-700">Repair Cost Source</p>
-                    <p className="mt-1 text-sm font-bold text-slate-950">{ticketLabel(ticket)}</p>
-                    <p className="text-xs text-slate-600">{ticket.customer?.fullName || "Customer not set"}</p>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <CostPill label="Estimate" value={estimateAmount} />
-                      <CostPill label="Used Parts" value={usedPartsAmount} />
-                      <CostPill label="Extra Cost" value={technicianExtraCost} />
-                    </div>
-                  </div>
-                )}
+
 
                 {ticket && (
                   <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs">
@@ -302,14 +291,7 @@ function GeneratedInvoiceSummary({ invoice }) {
   );
 }
 
-function CostPill({ label, value }) {
-  return (
-    <div className="rounded-md border border-blue-100 bg-white px-3 py-2">
-      <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="mt-1 text-sm font-black text-slate-950">{formatCurrency(value)}</p>
-    </div>
-  );
-}
+
 
 function InvoiceDraftPreview({
   ticket,

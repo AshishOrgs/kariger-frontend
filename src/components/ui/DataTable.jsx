@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Form";
 import { Table, Td, Th } from "@/components/ui/Table";
@@ -31,15 +32,19 @@ export function DataTable({
   return (
     <div className="min-w-0">
       {searchable ? (
-        <div className="border-b border-[var(--border)] p-4">
-          <Input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-            placeholder={searchPlaceholder}
-          />
+        <div className="border-b border-slate-100 px-4 py-3 bg-slate-50/50 flex items-center justify-between">
+          <div className="relative w-full max-w-xs">
+            <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              className="pl-9 h-9 text-xs w-full rounded-lg border-slate-200 bg-white focus:bg-white transition-all shadow-2xs placeholder:text-slate-400"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+              placeholder={searchPlaceholder}
+            />
+          </div>
         </div>
       ) : null}
       <QueryState

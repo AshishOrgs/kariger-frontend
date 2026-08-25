@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { FileText, Printer } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
@@ -10,7 +11,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Table, Td, Th } from "@/components/ui/Table";
 import { OperationsWorkflowPage } from "@/components/workflow/OperationsWorkflow";
 import { billingApi, repairApi } from "@/services/modules";
-import { cn, formatCurrency, unwrapArray } from "@/utils/cn";
+import { cn, formatCurrency, formatDate, unwrapArray } from "@/utils/cn";
 import { firstObject } from "@/utils/data";
 import { useNotifyMutation, getErrorMessage } from "@/hooks/useNotifyMutation";
 import { isBillingEligibleTicket } from "@/utils/workflow";
@@ -265,6 +266,22 @@ export function Billing() {
                       <span className="text-xs font-semibold text-slate-400">Paid</span>
                     ),
                 },
+                {
+                  key: "pdf",
+                  header: "PDF",
+                  render: (invoice) => (
+                    <Link to={`/billing/invoices/${invoice.id}?print=true`}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        type="button"
+                        className="h-7 px-2.5 text-xs font-bold gap-1 cursor-pointer bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200"
+                      >
+                        <FileText className="h-3.5 w-3.5 text-[#1769aa]" /> PDF
+                      </Button>
+                    </Link>
+                  ),
+                },
               ]}
             />
           </CardContent>
@@ -412,6 +429,13 @@ function InvoiceDraftPreview({
 }
 
 function InvoiceDocument({ invoice, items }) {
+  const ticket = invoice.ticket;
+  const itemDevice = ticket?.items?.[0];
+  const deviceDetail = itemDevice
+    ? `${itemDevice.brand || ""} ${itemDevice.model || ""}`.trim() || itemDevice.itemType || "Device"
+    : ticket?.device || "Device";
+  const serialImei = itemDevice?.serialNumber || itemDevice?.imei || "N/A";
+
   const estimateItems = items.filter((item) => ["ESTIMATE", "LABOR"].includes(item.sourceType));
   const usedPartsItems = items.filter((item) => item.sourceType === "ACTUAL_USAGE");
   const manualItems = items.filter((item) => !["ESTIMATE", "LABOR", "ACTUAL_USAGE"].includes(item.sourceType));
@@ -419,64 +443,111 @@ function InvoiceDocument({ invoice, items }) {
   const discount = Number(invoice.discountAmount || 0);
   const tax = Number(invoice.taxAmount || 0);
 
+  const payments = invoice.payments || invoice.repairPayments || [];
+  const latestPayment = payments[payments.length - 1];
+  const paymentMethod = latestPayment?.method || invoice.paymentMethod || "CASH / ONLINE";
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Invoice Document</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-lg border border-[var(--border)] bg-white">
-          <div className="grid gap-4 border-b border-[var(--border)] p-4 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Invoice</p>
-              <p className="mt-1 text-xl font-bold text-slate-900">{invoice.invoiceNumber}</p>
-              <div className="mt-2"><StatusBadge status={invoice.status} /></div>
+    <Card className="border border-slate-200 shadow-sm overflow-hidden rounded-xl bg-white print:border-none print:shadow-none print:m-0 print:p-0">
+      <CardHeader className="bg-slate-50 border-b border-slate-200 p-6 print:bg-white print:border-b-2 print:border-slate-900">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-black text-slate-950 tracking-tight">
+              {invoice.branch?.name || "Main Branch - KARIGER ERP"}
+            </h2>
+            <p className="text-xs font-medium text-slate-500 mt-0.5">Official Repair Invoice & Receipt</p>
+          </div>
+          <div className="text-right">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-400 block">Invoice No.</span>
+            <span className="text-lg font-black text-[#1769aa] font-mono">{invoice.invoiceNumber}</span>
+            <div className="mt-1 flex justify-end gap-2 items-center">
+              <span className="text-xs text-slate-500">{invoice.createdAt ? formatDate(invoice.createdAt) : ""}</span>
+              <StatusBadge status={invoice.status} />
             </div>
-            <div className="sm:text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--muted)]">Customer</p>
-              <p className="mt-1 font-semibold text-slate-900">{invoice.customer?.fullName || "Customer not set"}</p>
-              <p className="text-sm text-[var(--muted)]">{invoice.ticket ? ticketLabel(invoice.ticket) : "Repair not set"}</p>
+          </div>
+        </div>
+      </CardHeader>
+
+      <CardContent className="p-6 space-y-6">
+        {/* Customer & Device Information Grid */}
+        <div className="grid gap-4 sm:grid-cols-2 rounded-xl border border-slate-100 bg-slate-50/50 p-4 print:border-slate-200">
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Customer Information</span>
+            <p className="mt-1 text-sm font-bold text-slate-900">{invoice.customer?.fullName || "Customer"}</p>
+            {invoice.customer?.phone && <p className="text-xs text-slate-600 font-medium">Phone: {invoice.customer.phone}</p>}
+            {invoice.customer?.email && <p className="text-xs text-slate-600">Email: {invoice.customer.email}</p>}
+            {invoice.customer?.address && <p className="text-xs text-slate-600">Address: {invoice.customer.address}</p>}
+          </div>
+
+          <div>
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Repair & Device Details</span>
+            <p className="mt-1 text-sm font-bold text-slate-900">{ticket ? ticketLabel(ticket) : "Repair Ticket"}</p>
+            <p className="text-xs text-slate-700 font-semibold mt-0.5">Device: {deviceDetail}</p>
+            <p className="text-xs text-slate-600">Serial / IMEI: {serialImei}</p>
+            {ticket?.title && <p className="text-xs text-slate-500">Problem: {ticket.title}</p>}
+          </div>
+        </div>
+
+        {/* Itemized Invoice Breakdown */}
+        <div className="space-y-4">
+          <span className="text-xs font-black uppercase tracking-wider text-slate-500 block">Invoice Line Items</span>
+
+          <InvoiceSection title="Approved Estimate & Labor" subtitle="Initial diagnostic estimate" amount={sumInvoiceItems(estimateItems)}>
+            {estimateItems.length ? estimateItems.map((item, index) => (
+              <InvoiceLine
+                key={item.id || index}
+                name={item.name}
+                meta={`${item.itemType || item.sourceType || "LABOR"} · Qty ${item.quantity || 1}`}
+                amount={Number(item.totalAmount || item.lineTotal || 0)}
+              />
+            )) : <p className="p-3 text-xs text-slate-400 italic">No estimate charges.</p>}
+          </InvoiceSection>
+
+          <InvoiceSection title="Used Item Parts" subtitle="Actual replacement parts consumed" amount={sumInvoiceItems(usedPartsItems)}>
+            {usedPartsItems.length ? usedPartsItems.map((item, index) => (
+              <InvoiceLine
+                key={item.id || index}
+                name={item.name}
+                meta={`${item.itemType || item.sourceType || "PARTS"} · Qty ${item.quantity || 1}`}
+                amount={Number(item.totalAmount || item.lineTotal || 0)}
+              />
+            )) : <p className="p-3 text-xs text-slate-400 italic">No consumed parts recorded.</p>}
+          </InvoiceSection>
+
+          {manualItems.length ? (
+            <InvoiceSection title="Other Charges / Technician Extra Cost" subtitle="Additional report charges" amount={sumInvoiceItems(manualItems)}>
+              {manualItems.map((item, index) => (
+                <InvoiceLine
+                  key={item.id || index}
+                  name={item.name}
+                  meta={`${item.itemType || item.sourceType || "EXTRA"} · Qty ${item.quantity || 1}`}
+                  amount={Number(item.totalAmount || item.lineTotal || 0)}
+                />
+              ))}
+            </InvoiceSection>
+          ) : null}
+        </div>
+
+        {/* Totals & Payment Breakdown */}
+        <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
+          <div className="space-y-2">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Payment Summary</span>
+            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs space-y-1.5">
+              <div className="flex justify-between"><span className="text-slate-500">Payment Method:</span><span className="font-bold text-slate-800">{paymentMethod}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Amount Paid:</span><span className="font-bold text-emerald-700">{formatCurrency(invoice.paidAmount)}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Amount Due:</span><span className="font-bold text-slate-900">{formatCurrency(invoice.dueAmount)}</span></div>
             </div>
           </div>
 
-          <div className="space-y-4 p-4">
-            <InvoiceSection title="Estimate Cost" subtitle="Approved estimate details" amount={sumInvoiceItems(estimateItems)}>
-              {estimateItems.length ? estimateItems.map((item, index) => (
-                <InvoiceLine
-                  key={item.id || index}
-                  name={item.name}
-                  meta={`${item.itemType || item.sourceType} · Qty ${item.quantity || 1}`}
-                  amount={Number(item.totalAmount || item.lineTotal || 0)}
-                />
-              )) : <p className="text-xs text-[var(--muted)]">No estimate items on this invoice.</p>}
-            </InvoiceSection>
-
-            <InvoiceSection title="Used Item Parts" subtitle="Actual parts usage details" amount={sumInvoiceItems(usedPartsItems)}>
-              {usedPartsItems.length ? usedPartsItems.map((item, index) => (
-                <InvoiceLine
-                  key={item.id || index}
-                  name={item.name}
-                  meta={`${item.itemType || item.sourceType} · Qty ${item.quantity || 1}`}
-                  amount={Number(item.totalAmount || item.lineTotal || 0)}
-                />
-              )) : <p className="text-xs text-[var(--muted)]">No actual parts usage items on this invoice.</p>}
-            </InvoiceSection>
-
-            {manualItems.length ? (
-              <InvoiceSection title="Other Charges" subtitle="Manual invoice items" amount={sumInvoiceItems(manualItems)}>
-                {manualItems.map((item, index) => (
-                  <InvoiceLine
-                    key={item.id || index}
-                    name={item.name}
-                    meta={`${item.itemType || item.sourceType} · Qty ${item.quantity || 1}`}
-                    amount={Number(item.totalAmount || item.lineTotal || 0)}
-                  />
-                ))}
-              </InvoiceSection>
-            ) : null}
-
+          <div>
             <InvoiceTotals subtotal={subtotal} discount={discount} tax={tax} total={Number(invoice.totalAmount || 0)} />
           </div>
+        </div>
+
+        {/* Invoice Footer / Terms */}
+        <div className="pt-4 text-center border-t border-slate-100 text-[11px] text-slate-400">
+          <p className="font-semibold text-slate-600">Thank you for choosing {invoice.branch?.name || "Main Branch"}!</p>
+          <p className="mt-0.5">Please retain this invoice as proof of service for warranty and support.</p>
         </div>
       </CardContent>
     </Card>
@@ -549,13 +620,26 @@ function Field({ label, children }) {
 }
 
 export function InvoiceDetails({ id }) {
+  const [searchParams] = useSearchParams();
+  const shouldAutoPrint = searchParams.get("print") === "true";
   const [error, setError] = useState("");
   const [paymentCollected, setPaymentCollected] = useState(false);
   const queryClient = useQueryClient();
+
   const { data } = useQuery({ queryKey: ["billing", "invoice", id], queryFn: () => billingApi.invoice(id), enabled: Boolean(id) });
   const invoice = firstObject(data, ["invoice"]);
   const payments = invoice.payments || invoice.repairPayments || [];
   const items = invoice.items || invoice.invoiceItems || [];
+
+  useEffect(() => {
+    if (shouldAutoPrint && invoice?.id) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldAutoPrint, invoice?.id]);
+
   const paymentMutation = useNotifyMutation({
     mutationFn: (payload) => billingApi.collectPayment(id, payload),
     successMessage: "Payment collected successfully.",
@@ -567,22 +651,33 @@ export function InvoiceDetails({ id }) {
     onError: (err) => setError(getErrorMessage(err)),
   });
 
-  if (!invoice?.id) return <p className="text-sm text-[var(--muted)]">Loading invoice...</p>;
+  if (!invoice?.id) return <p className="text-sm text-[var(--muted)] p-6">Loading invoice...</p>;
 
   return (
     <>
-      <PageHeader title={invoice.invoiceNumber} description="Final invoice, payment collection, and receipt history for this repair." />
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5 print:hidden">
+        <PageHeader title={invoice.invoiceNumber} description="Final invoice, payment collection, and receipt history for this repair." />
+        <Button
+          type="button"
+          onClick={() => window.print()}
+          className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-4 gap-1.5 cursor-pointer shadow-sm"
+        >
+          <Printer className="h-4 w-4" /> Print / Save as PDF
+        </Button>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-4 print:hidden mb-5">
         <Card><CardContent><p className="text-sm text-[var(--muted)]">Total</p><p className="mt-2 text-2xl font-bold">{formatCurrency(invoice.totalAmount)}</p></CardContent></Card>
         <Card><CardContent><p className="text-sm text-[var(--muted)]">Paid</p><p className="mt-2 text-2xl font-bold">{formatCurrency(invoice.paidAmount)}</p></CardContent></Card>
         <Card><CardContent><p className="text-sm text-[var(--muted)]">Due Amount</p><p className="mt-2 text-2xl font-bold">{formatCurrency(invoice.dueAmount)}</p></CardContent></Card>
         <Card><CardContent><p className="text-sm text-[var(--muted)]">Status</p><div className="mt-2"><StatusBadge status={invoice.status} /></div></CardContent></Card>
       </div>
-      <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
-        <div className="space-y-5">
+
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)] print:block">
+        <div className="space-y-5 print:w-full">
           <InvoiceDocument invoice={invoice} items={items} />
         </div>
-        <div className="space-y-5 xl:sticky xl:top-5 xl:self-start">
+        <div className="space-y-5 xl:sticky xl:top-5 xl:self-start print:hidden">
           <Card>
             <CardHeader>
               <CardTitle>Collect Payment</CardTitle>

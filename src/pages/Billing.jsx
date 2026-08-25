@@ -109,19 +109,114 @@ export function Billing() {
 
   return (
     <OperationsWorkflowPage current="billing" ticket={workflowTicket} ticketId={activeTicketId} showContinue={false} showSummary={false}>
-      <PageHeader title="Billing" description="Create the final invoice from estimate, used item parts, and technician extra cost." />
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
-        <Card>
+      <PageHeader title="Billing & Invoicing" description="Create the final invoice from estimate, used item parts, and technician extra cost." />
+      
+      <div className="space-y-6 min-w-0">
+        {/* TOP: CREATE FINAL INVOICE FORM */}
+        <Card className="border border-slate-200 shadow-sm rounded-xl overflow-hidden">
+          <CardHeader className="bg-slate-50/50 border-b border-slate-100 px-6 py-4">
+            <CardTitle className="text-base font-bold text-slate-900">Create Final Invoice</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <form className="space-y-5 max-w-3xl" onSubmit={handleSubmitInvoice}>
+              <Field label="Select Repair Ticket">
+                <Select
+                  name="ticketId"
+                  value={activeTicketId}
+                  onChange={(event) => {
+                    setSelectedTicketId(event.target.value);
+                    setDiscountAmount(0);
+                    setTaxRate(0);
+                    setNotes("");
+                  }}
+                >
+                  <option value="" disabled>-- Select Ticket --</option>
+                  {invoiceCandidates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {ticketLabel(t)} · {t.title}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+
+              {!invoiceCandidates.length ? (
+                <p className="text-sm text-[var(--muted)]">
+                  No tickets are ready for invoice. First approve the estimate, use item parts, or submit technician extra cost, then come back here.
+                </p>
+              ) : null}
+
+              {waitingApprovalTickets.length ? (
+                <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                  <p className="font-semibold">Waiting approval before billing</p>
+                  <p className="mt-1">{waitingApprovalTickets.slice(0, 3).map(ticketLabel).join(", ")}</p>
+                  <Link className="mt-2 inline-block text-[var(--primary)]" to="/repair/estimates">
+                    Go to Estimates
+                  </Link>
+                </div>
+              ) : null}
+
+              {ticket && (
+                <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-4 text-xs">
+                  <InvoiceDraftPreview
+                    ticket={ticket}
+                    estimate={approvedEstimate}
+                    estimateItems={estimateItems}
+                    partsUsage={partsUsage}
+                    estimateAmount={estimateAmount}
+                    usedPartsAmount={usedPartsAmount}
+                    technicianExtraCost={technicianExtraCost}
+                    extraCostReason={ticket.extraCostReason}
+                    invoiceBaseAmount={invoiceBaseAmount}
+                    taxRate={taxRate}
+                    setTaxRate={setTaxRate}
+                    taxAmount={taxAmount}
+                    discountAmount={discountAmount}
+                    setDiscountAmount={setDiscountAmount}
+                    finalAmount={finalAmount}
+                  />
+                </div>
+              )}
+
+              <Field label="Invoice Notes">
+                <Textarea
+                  placeholder="Notes shown on the invoice..."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+              </Field>
+
+              <Button
+                className="w-full sm:w-auto px-6 h-10 bg-[#1769aa] hover:bg-[#125388] text-white font-bold cursor-pointer"
+                type="submit"
+                disabled={invoiceMutation.isPending || !activeTicketId || !hasBillableRepairCost}
+              >
+                {invoiceMutation.isPending ? "Generating..." : "Generate Invoice"}
+              </Button>
+              {!hasBillableRepairCost && activeTicketId ? (
+                <p className="text-xs text-[var(--muted)]">This repair has no estimate, used item parts, or technician extra cost yet.</p>
+              ) : null}
+            </form>
+            {generatedInvoice?.id ? <GeneratedInvoiceSummary invoice={generatedInvoice} /> : null}
+          </CardContent>
+        </Card>
+
+        {/* BOTTOM: INVOICES & PAYMENT HISTORY TABLE */}
+        <Card className="border border-slate-200 shadow-sm rounded-xl overflow-hidden">
+          <CardHeader className="bg-slate-50/50 border-b border-slate-100 px-6 py-4">
+            <CardTitle className="text-base font-bold text-slate-900">Invoices & Payment History</CardTitle>
+          </CardHeader>
           <CardContent className="p-0">
             <DataTable
               rows={invoices}
+              searchPlaceholder="Search invoices..."
               emptyTitle="No invoices found"
+              emptyDescription="Generated invoices will appear here."
               columns={[
                 {
                   key: "invoiceNumber",
                   header: "Invoice",
                   render: (invoice) => (
-                    <Link className="font-semibold text-[var(--primary)]" to={`/billing/invoices/${invoice.id}`}>
+                    <Link className="font-bold text-[#1769aa]" to={`/billing/invoices/${invoice.id}`}>
                       {invoice.invoiceNumber}
                     </Link>
                   ),
@@ -162,110 +257,18 @@ export function Billing() {
                   render: (invoice) =>
                     Number(invoice.dueAmount || 0) > 0 ? (
                       <Link to={`/billing/invoices/${invoice.id}`}>
-                        <Button size="sm" type="button">
+                        <Button size="sm" type="button" className="h-7 px-3 text-xs bg-[#1769aa] cursor-pointer">
                           Pay
                         </Button>
                       </Link>
                     ) : (
-                      <span className="text-sm text-[var(--muted)]">Paid</span>
+                      <span className="text-xs font-semibold text-slate-400">Paid</span>
                     ),
                 },
               ]}
             />
           </CardContent>
         </Card>
-
-        <div className="min-w-0 space-y-5">
-          <Card>
-            <CardHeader>
-              <CardTitle>Create Final Invoice</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={handleSubmitInvoice}>
-                <Field label="Select Repair Ticket">
-                  <Select
-                    name="ticketId"
-                    value={activeTicketId}
-                    onChange={(event) => {
-                      setSelectedTicketId(event.target.value);
-                      setDiscountAmount(0);
-                      setTaxRate(0);
-                      setNotes("");
-                    }}
-                  >
-                    <option value="" disabled>-- Select Ticket --</option>
-                    {invoiceCandidates.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {ticketLabel(t)} · {t.title}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
-
-                {!invoiceCandidates.length ? (
-                  <p className="text-sm text-[var(--muted)]">
-                    No tickets are ready for invoice. First approve the estimate, use item parts, or submit technician extra cost, then come back here.
-                  </p>
-                ) : null}
-
-                {waitingApprovalTickets.length ? (
-                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-                    <p className="font-semibold">Waiting approval before billing</p>
-                    <p className="mt-1">{waitingApprovalTickets.slice(0, 3).map(ticketLabel).join(", ")}</p>
-                    <Link className="mt-2 inline-block text-[var(--primary)]" to="/repair/estimates">
-                      Go to Estimates
-                    </Link>
-                  </div>
-                ) : null}
-
-
-
-                {ticket && (
-                  <div className="space-y-3 rounded-lg border border-slate-100 bg-slate-50 p-3 text-xs">
-                    <InvoiceDraftPreview
-                      ticket={ticket}
-                      estimate={approvedEstimate}
-                      estimateItems={estimateItems}
-                      partsUsage={partsUsage}
-                      estimateAmount={estimateAmount}
-                      usedPartsAmount={usedPartsAmount}
-                      technicianExtraCost={technicianExtraCost}
-                      extraCostReason={ticket.extraCostReason}
-                      invoiceBaseAmount={invoiceBaseAmount}
-                      taxRate={taxRate}
-                      setTaxRate={setTaxRate}
-                      taxAmount={taxAmount}
-                      discountAmount={discountAmount}
-                      setDiscountAmount={setDiscountAmount}
-                      finalAmount={finalAmount}
-                    />
-                  </div>
-                )}
-
-                <Field label="Invoice Notes">
-                  <Textarea
-                    placeholder="Notes shown on the invoice..."
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                  />
-                </Field>
-
-                <Button
-                  className="w-full"
-                  type="submit"
-                  disabled={invoiceMutation.isPending || !activeTicketId || !hasBillableRepairCost}
-                >
-                  {invoiceMutation.isPending ? "Generating..." : "Generate Invoice"}
-                </Button>
-                {!hasBillableRepairCost && activeTicketId ? (
-                  <p className="text-xs text-[var(--muted)]">This repair has no estimate, used item parts, or technician extra cost yet.</p>
-                ) : null}
-              </form>
-              {generatedInvoice?.id ? <GeneratedInvoiceSummary invoice={generatedInvoice} /> : null}
-            </CardContent>
-          </Card>
-
-        </div>
       </div>
     </OperationsWorkflowPage>
   );

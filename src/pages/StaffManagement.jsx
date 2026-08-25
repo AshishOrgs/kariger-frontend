@@ -92,61 +92,45 @@ const ROLE_TEMPLATE_PERMISSIONS = {
   ],
 };
 
+// ── Section → all backend permissions it controls ──
+const SECTION_PERMISSIONS = {
+  repair_intake:      [PERMISSIONS.REPAIR_INTAKE],
+  technician_work:   [PERMISSIONS.REPAIR_WORK, PERMISSIONS.REPAIR_STATUS_UPDATE, PERMISSIONS.REPAIR_ASSIGN],
+  technician_report: [PERMISSIONS.REPAIR_JOBS_VIEW, PERMISSIONS.REPAIR_ESTIMATE, PERMISSIONS.ESTIMATE_CREATE, PERMISSIONS.ESTIMATE_APPROVE, PERMISSIONS.ESTIMATE_REJECT],
+  inventory:         [PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.INVENTORY_MANAGE, PERMISSIONS.INVENTORY_CONSUME],
+  billing:           [PERMISSIONS.BILLING_VIEW, PERMISSIONS.BILLING_CREATE, PERMISSIONS.PAYMENT_COLLECT],
+  handover:          [PERMISSIONS.HANDOVER_VIEW, PERMISSIONS.HANDOVER_MANAGE],
+  vendors:           [PERMISSIONS.VENDOR_VIEW, PERMISSIONS.VENDOR_MANAGE, PERMISSIONS.VENDOR_JOB_UPDATE],
+  reports:           [PERMISSIONS.REPORTS_VIEW],
+  staff:             [PERMISSIONS.STAFF_VIEW, PERMISSIONS.STAFF_MANAGE, PERMISSIONS.STAFF_BRANCH_ASSIGN],
+  branches:          [PERMISSIONS.BRANCH_VIEW, PERMISSIONS.BRANCH_MANAGE],
+  profile:           [PERMISSIONS.BUSINESS_MANAGE, PERMISSIONS.SETTINGS_MANAGE],
+  subscription:      [PERMISSIONS.SUBSCRIPTION_MANAGE],
+};
+
+// One flat group — one toggle per sidebar section
 const PERMISSION_GROUPS = [
   {
-    title: "Repair",
+    title: "Sections",
     permissions: [
-      [PERMISSIONS.REPAIR_INTAKE, "Repair Intake"],
-      [PERMISSIONS.REPAIR_JOBS_VIEW, "Technician Report"],
-      [PERMISSIONS.REPAIR_ESTIMATE, "Estimate Access"],
-      [PERMISSIONS.ESTIMATE_CREATE, "Create Estimate"],
-      [PERMISSIONS.ESTIMATE_APPROVE, "Approve Estimate"],
-      [PERMISSIONS.ESTIMATE_REJECT, "Reject Estimate"],
-      [PERMISSIONS.REPAIR_ASSIGN, "Assign Technician"],
-      [PERMISSIONS.REPAIR_WORK, "Repair Work"],
-      [PERMISSIONS.REPAIR_STATUS_UPDATE, "Update Repair Status"],
-    ],
-  },
-  {
-    title: "Inventory",
-    permissions: [
-      [PERMISSIONS.INVENTORY_VIEW, "View Inventory"],
-      [PERMISSIONS.INVENTORY_MANAGE, "Manage Inventory"],
-      [PERMISSIONS.INVENTORY_CONSUME, "Consume Parts"],
-    ],
-  },
-  {
-    title: "Billing",
-    permissions: [
-      [PERMISSIONS.BILLING_VIEW, "View Billing"],
-      [PERMISSIONS.BILLING_CREATE, "Create Invoice"],
-      [PERMISSIONS.PAYMENT_COLLECT, "Collect Payment"],
-    ],
-  },
-  {
-    title: "Operations",
-    permissions: [
-      [PERMISSIONS.HANDOVER_VIEW, "View Handover"],
-      [PERMISSIONS.HANDOVER_MANAGE, "Manage Handover"],
-      [PERMISSIONS.VENDOR_VIEW, "View Vendors"],
-      [PERMISSIONS.VENDOR_MANAGE, "Manage Vendors"],
-      [PERMISSIONS.VENDOR_JOB_UPDATE, "Update Vendor Jobs"],
-    ],
-  },
-  {
-    title: "Business",
-    permissions: [
-      [PERMISSIONS.STAFF_VIEW, "View Staff"],
-      [PERMISSIONS.STAFF_MANAGE, "Manage Staff"],
-      [PERMISSIONS.STAFF_BRANCH_ASSIGN, "Assign Staff Branch"],
-      [PERMISSIONS.BRANCH_VIEW, "View Branches"],
-      [PERMISSIONS.BRANCH_MANAGE, "Manage Branches"],
-      [PERMISSIONS.BUSINESS_MANAGE, "Business Settings"],
-      [PERMISSIONS.SETTINGS_MANAGE, "System Settings"],
-      [PERMISSIONS.SUBSCRIPTION_MANAGE, "Subscription"],
+      ["repair_intake",      "Repair Intake"],
+      ["technician_work",    "Technician Work"],
+      ["technician_report",  "Technician Report"],
+      ["inventory",          "Inventory"],
+      ["billing",            "Billing"],
+      ["handover",           "Handover"],
+      ["vendors",            "Vendors"],
+      ["reports",            "Reports"],
+      ["staff",              "Staff"],
+      ["branches",           "Branches"],
+      ["profile",            "Profile"],
+      ["subscription",       "Subscription"],
     ],
   },
 ];
+
+// All individual permission keys (for override payload building)
+const ALL_PERMISSION_KEYS = Object.values(SECTION_PERMISSIONS).flat();
 
 const ACCESS_SCOPE_OPTIONS = [
   ["ownBranch", "Current Branch"],
@@ -159,10 +143,6 @@ const TICKET_SCOPE_OPTIONS = [
   ["assignedTicketsOnly", "Assigned Tickets Only"],
 ];
 
-const ALL_PERMISSION_KEYS = PERMISSION_GROUPS.flatMap((group) =>
-  group.permissions.map(([permission]) => permission)
-);
-
 const getTemplatePermissions = (role) => ROLE_TEMPLATE_PERMISSIONS[role] || ROLE_TEMPLATE_PERMISSIONS.TECHNICIAN;
 const toPermissionArray = (permissions) => Array.from(new Set(permissions || []));
 const hasPermissionChanged = (current, defaults) => {
@@ -170,15 +150,41 @@ const hasPermissionChanged = (current, defaults) => {
   return current.length !== defaults.length || current.some((permission) => !defaultSet.has(permission));
 };
 
-function togglePermission(permissions, permission) {
-  const next = new Set(permissions);
-  if (next.has(permission)) {
-    next.delete(permission);
+// Check if a section is active: ALL its permissions must be enabled
+function isSectionActive(sectionKey, activePermissions) {
+  const perms = SECTION_PERMISSIONS[sectionKey] || [];
+  const activeSet = new Set(activePermissions);
+  return perms.length > 0 && perms.every((p) => activeSet.has(p));
+}
+
+// Check if a section is partially active (some but not all permissions on)
+function isSectionPartial(sectionKey, activePermissions) {
+  const perms = SECTION_PERMISSIONS[sectionKey] || [];
+  const activeSet = new Set(activePermissions);
+  const onCount = perms.filter((p) => activeSet.has(p)).length;
+  return onCount > 0 && onCount < perms.length;
+}
+
+// Check if a section is "default" (all its perms are in the template)
+function isSectionDefault(sectionKey, defaultPermissions) {
+  const perms = SECTION_PERMISSIONS[sectionKey] || [];
+  const defaultSet = new Set(defaultPermissions);
+  return perms.length > 0 && perms.every((p) => defaultSet.has(p));
+}
+
+// Toggle a whole section ON or OFF
+function toggleSection(currentPermissions, sectionKey) {
+  const sectionPerms = SECTION_PERMISSIONS[sectionKey] || [];
+  const isOn = isSectionActive(sectionKey, currentPermissions);
+  const next = new Set(currentPermissions);
+  if (isOn) {
+    sectionPerms.forEach((p) => next.delete(p));
   } else {
-    next.add(permission);
+    sectionPerms.forEach((p) => next.add(p));
   }
   return Array.from(next);
 }
+
 
 function buildOverridePayload(permissions, defaultPermissions) {
   const activeSet = new Set(permissions);
@@ -270,16 +276,13 @@ function PermissionEditorModal({
   saving = false,
   saveDisabled = false,
 }) {
-  const [activeGroup, setActiveGroup] = useState(PERMISSION_GROUPS[0].title);
   const templatePermissions = defaultPermissions || getTemplatePermissions(role);
-  const defaultSet = new Set(templatePermissions);
   const activeSet = new Set(permissions);
-  const activePermissionGroup = PERMISSION_GROUPS.find((group) => group.title === activeGroup) || PERMISSION_GROUPS[0];
   const overrideCount = buildOverridePayload(permissions, templatePermissions).length;
-
-  useEffect(() => {
-    if (open) setActiveGroup(PERMISSION_GROUPS[0].title);
-  }, [open]);
+  // Count how many sections are fully ON
+  const activeSectionCount = PERMISSION_GROUPS[0].permissions.filter(([sectionKey]) =>
+    isSectionActive(sectionKey, permissions)
+  ).length;
 
   if (!open) return null;
 
@@ -307,8 +310,8 @@ function PermissionEditorModal({
               <p className="mt-1 truncate font-bold">{ROLE_LABELS[role] || role}</p>
             </div>
             <div className="rounded-md bg-slate-50 px-3 py-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">On</p>
-              <p className="mt-1 font-bold">{activeSet.size}</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Sections ON</p>
+              <p className="mt-1 font-bold">{activeSectionCount} / {PERMISSION_GROUPS[0].permissions.length}</p>
             </div>
             <div className="rounded-md bg-slate-50 px-3 py-2">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Custom</p>
@@ -334,77 +337,57 @@ function PermissionEditorModal({
                 />
               ) : null}
 
-              <div className="sticky top-0 z-10 -mx-4 bg-white/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {PERMISSION_GROUPS.map((group) => {
-                    const groupOnCount = group.permissions.filter(([permission]) => activeSet.has(permission)).length;
-                    return (
-                      <button
-                        key={group.title}
-                        type="button"
-                        className={cn(
-                          "h-10 shrink-0 rounded-md border px-3 text-sm font-semibold",
-                          activeGroup === group.title
-                            ? "border-[var(--primary)] bg-[var(--primary)] text-white"
-                            : "border-[var(--border)] bg-white text-[var(--foreground)]"
-                        )}
-                        onClick={() => setActiveGroup(group.title)}
-                      >
-                        {group.title} · {groupOnCount}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div className="rounded-lg border border-[var(--border)] bg-slate-50/70 p-3">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <p className="text-sm font-bold uppercase tracking-[0.18em] text-[var(--muted)]">{activePermissionGroup.title}</p>
-                  <button
-                    type="button"
-                    className="text-xs font-semibold text-[var(--primary)]"
-                    disabled={saving}
-                    onClick={() => onPermissionsChange?.(toPermissionArray(templatePermissions))}
-                  >
-                    Reset defaults
-                  </button>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {activePermissionGroup.permissions.map(([permission, label]) => {
-                    const isDefault = defaultSet.has(permission);
-                    const isActive = activeSet.has(permission);
-                    const isCustom = isActive !== isDefault;
-                    return (
-                      <button
-                        key={permission}
-                        type="button"
-                        disabled={saving}
-                        onClick={() => onPermissionsChange?.(togglePermission(permissions, permission))}
-                        className={cn(
-                          "flex min-h-16 items-center justify-between gap-3 rounded-md border bg-white px-3 py-3 text-left transition",
-                          isActive ? "border-blue-200 ring-1 ring-blue-100" : "border-slate-100",
-                          isCustom && "border-amber-200 bg-amber-50/60"
-                        )}
-                      >
-                        <span>
-                          <span className="block text-sm font-semibold text-[var(--foreground)]">{label}</span>
-                          <span className="mt-1 block text-xs text-[var(--muted)]">
-                            {isDefault ? "Default ON" : "Default OFF"}{isCustom ? " · Custom" : ""}
-                          </span>
-                        </span>
-                        <span
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold uppercase tracking-[0.18em] text-[var(--muted)]">Section Access</p>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-[var(--primary)]"
+                      disabled={saving}
+                      onClick={() => onPermissionsChange?.(toPermissionArray(templatePermissions))}
+                    >
+                      Reset defaults
+                    </button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {PERMISSION_GROUPS[0].permissions.map(([sectionKey, label]) => {
+                      const isActive = isSectionActive(sectionKey, permissions);
+                      const isPartial = !isActive && isSectionPartial(sectionKey, permissions);
+                      const isDefault = isSectionDefault(sectionKey, templatePermissions);
+                      const isCustom = isActive !== isDefault;
+                      return (
+                        <button
+                          key={sectionKey}
+                          type="button"
+                          disabled={saving}
+                          onClick={() => onPermissionsChange?.(toggleSection(permissions, sectionKey))}
                           className={cn(
-                            "grid h-7 w-12 shrink-0 place-items-center rounded-full text-xs font-bold",
-                            isActive ? "bg-[var(--primary)] text-white" : "bg-slate-200 text-slate-600"
+                            "flex min-h-[4rem] items-center justify-between gap-3 rounded-md border bg-white px-4 py-3 text-left transition",
+                            isActive ? "border-blue-200 ring-1 ring-blue-100" : "border-slate-100",
+                            isPartial && "border-amber-200 bg-amber-50/40",
+                            isCustom && !isPartial && "border-amber-200 bg-amber-50/60"
                           )}
                         >
-                          {isActive ? "ON" : "OFF"}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          <span>
+                            <span className="block text-sm font-semibold text-[var(--foreground)]">{label}</span>
+                            <span className="mt-0.5 block text-xs text-[var(--muted)]">
+                              {isDefault ? "Default ON" : "Default OFF"}{isCustom ? " · Custom" : ""}
+                            </span>
+                          </span>
+                          <span
+                            className={cn(
+                              "grid h-7 w-12 shrink-0 place-items-center rounded-full text-xs font-bold",
+                              isActive ? "bg-[var(--primary)] text-white" : isPartial ? "bg-amber-400 text-white" : "bg-slate-200 text-slate-600"
+                            )}
+                          >
+                            {isActive ? "ON" : isPartial ? "~" : "OFF"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+            
             </div>
           )}
         </div>

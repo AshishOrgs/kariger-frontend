@@ -102,7 +102,7 @@ export function AppLayout() {
       <aside
         onDoubleClick={closeMobileSidebar}
         className={cn(
-          "fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh w-72 flex-col overflow-hidden border-r border-[var(--border)] bg-white transition-transform lg:translate-x-0",
+          "print:hidden fixed inset-y-0 left-0 z-30 flex h-dvh max-h-dvh w-72 flex-col overflow-hidden border-r border-[var(--border)] bg-white transition-transform lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -164,7 +164,7 @@ export function AppLayout() {
         </div>
       </aside>
       <div className="min-w-0 lg:pl-72">
-        <header className="sticky top-0 z-20 flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-white px-3 lg:px-6">
+        <header className="print:hidden sticky top-0 z-20 flex h-16 min-w-0 items-center justify-between gap-3 border-b border-[var(--border)] bg-white px-3 lg:px-6">
           <div className="flex items-center gap-3">
             <Button
               variant="ghost"
@@ -309,14 +309,14 @@ function MobileNavigation({ items, activeRoute, activePanel, setActivePanel, onC
         <Link
           to="/repair/new"
           onClick={onClosePanel}
-          className="fixed bottom-[4.95rem] right-3 z-40 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f9f8f,#1769aa)] px-5 py-3.5 text-sm font-black uppercase tracking-wide !text-white shadow-xl shadow-blue-900/25 ring-1 ring-white/40"
+          className="print:hidden fixed bottom-[4.95rem] right-3 z-40 inline-flex items-center gap-2 rounded-full bg-[linear-gradient(135deg,#0f9f8f,#1769aa)] px-5 py-3.5 text-sm font-black uppercase tracking-wide !text-white shadow-xl shadow-blue-900/25 ring-1 ring-white/40"
         >
           <BadgePlus className="h-5 w-5" />
           Create Repair
         </Link>
       ) : null}
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-10px_28px_rgba(15,23,42,0.1)] backdrop-blur">
+      <nav className="print:hidden fixed inset-x-0 bottom-0 z-30 border-t border-[var(--border)] bg-white/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.55rem)] pt-2 shadow-[0_-10px_28px_rgba(15,23,42,0.1)] backdrop-blur">
         <div
           className="grid gap-1.5"
           style={{ gridTemplateColumns: `repeat(${Math.max(bottomItems.length, 1)}, minmax(0, 1fr))` }}

@@ -164,7 +164,7 @@ export function Handover() {
         </div>
       ) : null}
       
-      {activeTicketId ? <div className="mt-5"><CustodyTimeline ticketId={activeTicketId} /></div> : null}
+      {activeTab === "completed" && activeTicketId ? <div className="mt-5"><CustodyTimeline ticketId={activeTicketId} /></div> : null}
     </OperationsWorkflowPage>
   );
 }

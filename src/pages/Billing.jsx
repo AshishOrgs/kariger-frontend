@@ -430,127 +430,333 @@ function InvoiceDraftPreview({
 
 function InvoiceDocument({ invoice, items }) {
   const ticket = invoice.ticket;
-  const itemDevice = ticket?.items?.[0];
-  const deviceDetail = itemDevice
-    ? `${itemDevice.brand || ""} ${itemDevice.model || ""}`.trim() || itemDevice.itemType || "Device"
-    : ticket?.device || "Device";
-  const serialImei = itemDevice?.serialNumber || itemDevice?.imei || "N/A";
+  const ticketItems = ticket?.items || [];
+  const primaryDevice = ticketItems[0];
+  const deviceDetail = primaryDevice
+    ? `${primaryDevice.brand || ""} ${primaryDevice.model || ""}`.trim() || primaryDevice.itemType || ""
+    : "";
+  const serialImei = primaryDevice?.serialNumber || primaryDevice?.imei || "";
+  const problemDesc = ticket?.title || ticket?.description || "";
 
-  const estimateItems = items.filter((item) => ["ESTIMATE", "LABOR"].includes(item.sourceType));
-  const usedPartsItems = items.filter((item) => item.sourceType === "ACTUAL_USAGE");
-  const manualItems = items.filter((item) => !["ESTIMATE", "LABOR", "ACTUAL_USAGE"].includes(item.sourceType));
-  const subtotal = items.reduce((sum, item) => sum + Number(item.totalAmount || item.lineTotal || 0), 0);
+  // ── Shop name resolution ──
+  // Main branch: show the actual business/shop name (not "Main Branch")
+  // Sub-branch: show that branch's own name
+  const branchInfo = invoice.branch;
+  const isMainBranch = branchInfo?.isMainBranch === true;
+  const shopName = isMainBranch
+    ? (branchInfo?.business?.name || "KARIGER ERP")
+    : (branchInfo?.name || branchInfo?.business?.name || "KARIGER ERP");
+  const shopAddress = isMainBranch
+    ? (branchInfo?.business?.address || branchInfo?.address || "")
+    : (branchInfo?.address || "");
+  const shopPhone = isMainBranch
+    ? (branchInfo?.business?.phone || branchInfo?.phone || "")
+    : (branchInfo?.phone || "");
+
+  // All line items rendered in one flat table
+  const lineItems = items.map((item) => ({
+    id: item.id,
+    description: item.name || item.partName || "Service",
+    category: item.sourceType === "ACTUAL_USAGE"
+      ? "Part / Component"
+      : item.sourceType === "ESTIMATE" || item.sourceType === "LABOR"
+      ? "Labor / Estimate"
+      : "Other Charge",
+    qty: Number(item.quantity || 1),
+    unitPrice: Number(item.unitAmount || item.unitCost || 0) || (Number(item.totalAmount || item.lineTotal || 0) / Number(item.quantity || 1)),
+    total: Number(item.totalAmount || item.lineTotal || 0),
+  }));
+
+  const subtotal = lineItems.reduce((s, i) => s + i.total, 0);
   const discount = Number(invoice.discountAmount || 0);
   const tax = Number(invoice.taxAmount || 0);
+  const grandTotal = Number(invoice.totalAmount || subtotal - discount + tax);
 
   const payments = invoice.payments || invoice.repairPayments || [];
-  const latestPayment = payments[payments.length - 1];
-  const paymentMethod = latestPayment?.method || invoice.paymentMethod || "CASH / ONLINE";
+  const paymentMethod = payments[payments.length - 1]?.method || invoice.paymentMethod || "CASH";
+  const invoiceDate = invoice.createdAt ? formatDate(invoice.createdAt) : formatDate(new Date().toISOString());
+  const isPaid = invoice.status === "PAID";
 
   return (
-    <Card className="border border-slate-200 shadow-sm overflow-hidden rounded-xl bg-white print:border-none print:shadow-none print:m-0 print:p-0">
-      <CardHeader className="bg-slate-50 border-b border-slate-200 p-6 print:bg-white print:border-b-2 print:border-slate-900">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-black text-slate-950 tracking-tight">
-              {invoice.branch?.name || "Main Branch - KARIGER ERP"}
-            </h2>
-            <p className="text-xs font-medium text-slate-500 mt-0.5">Official Repair Invoice & Receipt</p>
+    <div
+      id="invoice-print-root"
+      style={{
+        fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif",
+        background: "#fff",
+        color: "#111827",
+        maxWidth: "780px",
+        margin: "0 auto",
+        padding: "0",
+        fontSize: "13px",
+        lineHeight: "1.5",
+      }}
+    >
+      {/* ── HEADER STRIP ── */}
+      <div style={{
+        background: "linear-gradient(135deg, #0f2b5b 0%, #1769aa 100%)",
+        padding: "28px 36px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        borderRadius: "10px 10px 0 0",
+      }}>
+        <div>
+          <div style={{ fontSize: "22px", fontWeight: 900, color: "#fff", letterSpacing: "-0.3px" }}>
+            🔧 {shopName}
           </div>
-          <div className="text-right">
-            <span className="text-xs font-black uppercase tracking-wider text-slate-400 block">Invoice No.</span>
-            <span className="text-lg font-black text-[#1769aa] font-mono">{invoice.invoiceNumber}</span>
-            <div className="mt-1 flex justify-end gap-2 items-center">
-              <span className="text-xs text-slate-500">{invoice.createdAt ? formatDate(invoice.createdAt) : ""}</span>
-              <StatusBadge status={invoice.status} />
+          <div style={{ fontSize: "11px", color: "#93c5fd", marginTop: "3px", fontWeight: 500 }}>
+            Professional Device Repair Services
+          </div>
+          {shopAddress && (
+            <div style={{ fontSize: "11px", color: "#bfdbfe", marginTop: "4px" }}>
+              📍 {shopAddress}
+            </div>
+          )}
+          {shopPhone && (
+            <div style={{ fontSize: "11px", color: "#bfdbfe", marginTop: "2px" }}>
+              📞 {shopPhone}
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{
+            background: "rgba(255,255,255,0.15)",
+            borderRadius: "8px",
+            padding: "12px 18px",
+            backdropFilter: "blur(8px)",
+            border: "1px solid rgba(255,255,255,0.2)",
+          }}>
+            <div style={{ fontSize: "10px", color: "#93c5fd", fontWeight: 700, textTransform: "uppercase", letterSpacing: "1px" }}>
+              INVOICE
+            </div>
+            <div style={{ fontSize: "16px", fontWeight: 900, color: "#fff", marginTop: "2px", fontFamily: "monospace" }}>
+              {invoice.invoiceNumber}
+            </div>
+            <div style={{ fontSize: "11px", color: "#bfdbfe", marginTop: "4px" }}>Date: {invoiceDate}</div>
+            <div style={{
+              display: "inline-block",
+              marginTop: "6px",
+              padding: "3px 10px",
+              borderRadius: "20px",
+              background: isPaid ? "#16a34a" : "#dc2626",
+              color: "#fff",
+              fontSize: "10px",
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}>
+              {invoice.status || "PENDING"}
             </div>
           </div>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="p-6 space-y-6">
-        {/* Customer & Device Information Grid */}
-        <div className="grid gap-4 sm:grid-cols-2 rounded-xl border border-slate-100 bg-slate-50/50 p-4 print:border-slate-200">
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Customer Information</span>
-            <p className="mt-1 text-sm font-bold text-slate-900">{invoice.customer?.fullName || "Customer"}</p>
-            {invoice.customer?.phone && <p className="text-xs text-slate-600 font-medium">Phone: {invoice.customer.phone}</p>}
-            {invoice.customer?.email && <p className="text-xs text-slate-600">Email: {invoice.customer.email}</p>}
-            {invoice.customer?.address && <p className="text-xs text-slate-600">Address: {invoice.customer.address}</p>}
+      {/* ── BILL TO + DEVICE DETAILS ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: "0",
+        background: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        borderTop: "none",
+      }}>
+        {/* Bill To */}
+        <div style={{ padding: "20px 28px", borderRight: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: "10px", fontWeight: 800, color: "#1769aa", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>
+            BILL TO
           </div>
-
-          <div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Repair & Device Details</span>
-            <p className="mt-1 text-sm font-bold text-slate-900">{ticket ? ticketLabel(ticket) : "Repair Ticket"}</p>
-            <p className="text-xs text-slate-700 font-semibold mt-0.5">Device: {deviceDetail}</p>
-            <p className="text-xs text-slate-600">Serial / IMEI: {serialImei}</p>
-            {ticket?.title && <p className="text-xs text-slate-500">Problem: {ticket.title}</p>}
+          <div style={{ fontWeight: 800, fontSize: "15px", color: "#0f172a" }}>
+            {invoice.customer?.fullName || "Customer"}
           </div>
-        </div>
-
-        {/* Itemized Invoice Breakdown */}
-        <div className="space-y-4">
-          <span className="text-xs font-black uppercase tracking-wider text-slate-500 block">Invoice Line Items</span>
-
-          <InvoiceSection title="Approved Estimate & Labor" subtitle="Initial diagnostic estimate" amount={sumInvoiceItems(estimateItems)}>
-            {estimateItems.length ? estimateItems.map((item, index) => (
-              <InvoiceLine
-                key={item.id || index}
-                name={item.name}
-                meta={`${item.itemType || item.sourceType || "LABOR"} · Qty ${item.quantity || 1}`}
-                amount={Number(item.totalAmount || item.lineTotal || 0)}
-              />
-            )) : <p className="p-3 text-xs text-slate-400 italic">No estimate charges.</p>}
-          </InvoiceSection>
-
-          <InvoiceSection title="Used Item Parts" subtitle="Actual replacement parts consumed" amount={sumInvoiceItems(usedPartsItems)}>
-            {usedPartsItems.length ? usedPartsItems.map((item, index) => (
-              <InvoiceLine
-                key={item.id || index}
-                name={item.name}
-                meta={`${item.itemType || item.sourceType || "PARTS"} · Qty ${item.quantity || 1}`}
-                amount={Number(item.totalAmount || item.lineTotal || 0)}
-              />
-            )) : <p className="p-3 text-xs text-slate-400 italic">No consumed parts recorded.</p>}
-          </InvoiceSection>
-
-          {manualItems.length ? (
-            <InvoiceSection title="Other Charges / Technician Extra Cost" subtitle="Additional report charges" amount={sumInvoiceItems(manualItems)}>
-              {manualItems.map((item, index) => (
-                <InvoiceLine
-                  key={item.id || index}
-                  name={item.name}
-                  meta={`${item.itemType || item.sourceType || "EXTRA"} · Qty ${item.quantity || 1}`}
-                  amount={Number(item.totalAmount || item.lineTotal || 0)}
-                />
-              ))}
-            </InvoiceSection>
-          ) : null}
-        </div>
-
-        {/* Totals & Payment Breakdown */}
-        <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
-          <div className="space-y-2">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Payment Summary</span>
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 text-xs space-y-1.5">
-              <div className="flex justify-between"><span className="text-slate-500">Payment Method:</span><span className="font-bold text-slate-800">{paymentMethod}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Amount Paid:</span><span className="font-bold text-emerald-700">{formatCurrency(invoice.paidAmount)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Amount Due:</span><span className="font-bold text-slate-900">{formatCurrency(invoice.dueAmount)}</span></div>
+          {invoice.customer?.phone && (
+            <div style={{ fontSize: "12px", color: "#475569", marginTop: "3px" }}>
+              📞 {invoice.customer.phone}
             </div>
-          </div>
-
-          <div>
-            <InvoiceTotals subtotal={subtotal} discount={discount} tax={tax} total={Number(invoice.totalAmount || 0)} />
-          </div>
+          )}
+          {invoice.customer?.email && (
+            <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
+              ✉️ {invoice.customer.email}
+            </div>
+          )}
+          {invoice.customer?.address && (
+            <div style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
+              📍 {invoice.customer.address}
+            </div>
+          )}
         </div>
 
-        {/* Invoice Footer / Terms */}
-        <div className="pt-4 text-center border-t border-slate-100 text-[11px] text-slate-400">
-          <p className="font-semibold text-slate-600">Thank you for choosing {invoice.branch?.name || "Main Branch"}!</p>
-          <p className="mt-0.5">Please retain this invoice as proof of service for warranty and support.</p>
+        {/* Device & Repair Info */}
+        <div style={{ padding: "20px 28px" }}>
+          <div style={{ fontSize: "10px", fontWeight: 800, color: "#1769aa", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>
+            REPAIR DETAILS
+          </div>
+          <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13px" }}>
+            Ticket: {ticket ? ticketLabel(ticket) : "—"}
+          </div>
+          {deviceDetail && (
+            <div style={{ fontSize: "12px", color: "#475569", marginTop: "3px" }}>
+              📱 Device: <strong>{deviceDetail}</strong>
+            </div>
+          )}
+          {serialImei && (
+            <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+              Serial / IMEI: {serialImei}
+            </div>
+          )}
+          {problemDesc && (
+            <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+              Problem: {problemDesc}
+            </div>
+          )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* ── ITEMS TABLE ── */}
+      <div style={{ border: "1px solid #e2e8f0", borderTop: "none" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12.5px" }}>
+          <thead>
+            <tr style={{ background: "#1769aa" }}>
+              <th style={{ padding: "10px 16px", textAlign: "left", color: "#fff", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", width: "40%" }}>
+                Description
+              </th>
+              <th style={{ padding: "10px 12px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", width: "15%" }}>
+                Category
+              </th>
+              <th style={{ padding: "10px 12px", textAlign: "center", color: "#fff", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", width: "10%" }}>
+                Qty
+              </th>
+              <th style={{ padding: "10px 12px", textAlign: "right", color: "#fff", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", width: "17%" }}>
+                Unit Price
+              </th>
+              <th style={{ padding: "10px 16px", textAlign: "right", color: "#fff", fontWeight: 700, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", width: "18%" }}>
+                Amount
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {lineItems.length ? lineItems.map((item, i) => (
+              <tr key={item.id || i} style={{ background: i % 2 === 0 ? "#fff" : "#f8fafc", borderBottom: "1px solid #f1f5f9" }}>
+                <td style={{ padding: "10px 16px", color: "#1e293b", fontWeight: 600 }}>
+                  {item.description}
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                  <span style={{
+                    background: item.category === "Part / Component" ? "#eff6ff" : item.category === "Labor / Estimate" ? "#f0fdf4" : "#fef9c3",
+                    color: item.category === "Part / Component" ? "#1769aa" : item.category === "Labor / Estimate" ? "#15803d" : "#92400e",
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    padding: "2px 7px",
+                    borderRadius: "20px",
+                    whiteSpace: "nowrap",
+                  }}>
+                    {item.category}
+                  </span>
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "center", color: "#475569", fontWeight: 600 }}>
+                  {item.qty}
+                </td>
+                <td style={{ padding: "10px 12px", textAlign: "right", color: "#475569" }}>
+                  {formatCurrency(item.unitPrice)}
+                </td>
+                <td style={{ padding: "10px 16px", textAlign: "right", color: "#0f172a", fontWeight: 700 }}>
+                  {formatCurrency(item.total)}
+                </td>
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={5} style={{ padding: "20px 16px", textAlign: "center", color: "#94a3b8", fontStyle: "italic" }}>
+                  No line items found on this invoice.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ── TOTALS + PAYMENT ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        border: "1px solid #e2e8f0",
+        borderTop: "none",
+        background: "#fff",
+      }}>
+        {/* Payment Method / Notes */}
+        <div style={{ padding: "20px 24px", borderRight: "1px solid #e2e8f0" }}>
+          <div style={{ fontSize: "10px", fontWeight: 800, color: "#1769aa", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>
+            PAYMENT INFO
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+            <span style={{ color: "#64748b", fontSize: "12px" }}>Method:</span>
+            <span style={{ fontWeight: 700, color: "#0f172a", fontSize: "12px" }}>{paymentMethod}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+            <span style={{ color: "#64748b", fontSize: "12px" }}>Amount Paid:</span>
+            <span style={{ fontWeight: 700, color: "#15803d", fontSize: "12px" }}>{formatCurrency(invoice.paidAmount)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "#64748b", fontSize: "12px" }}>Balance Due:</span>
+            <span style={{ fontWeight: 800, color: Number(invoice.dueAmount) > 0 ? "#dc2626" : "#15803d", fontSize: "12px" }}>
+              {formatCurrency(invoice.dueAmount)}
+            </span>
+          </div>
+          {invoice.notes && (
+            <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: "1px solid #f1f5f9" }}>
+              <div style={{ fontSize: "10px", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", marginBottom: "3px" }}>Notes</div>
+              <div style={{ fontSize: "11px", color: "#475569" }}>{invoice.notes}</div>
+            </div>
+          )}
+        </div>
+
+        {/* Totals */}
+        <div style={{ padding: "20px 24px" }}>
+          <div style={{ fontSize: "10px", fontWeight: 800, color: "#1769aa", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "10px" }}>
+            SUMMARY
+          </div>
+          {[
+            { label: "Subtotal", value: formatCurrency(subtotal), bold: false },
+            { label: "Discount", value: `− ${formatCurrency(discount)}`, bold: false },
+            { label: `Tax (${invoice.taxRate || 0}%)`, value: formatCurrency(tax), bold: false },
+          ].map(({ label, value, bold }) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", marginBottom: "5px" }}>
+              <span style={{ color: "#64748b", fontSize: "12px", fontWeight: bold ? 700 : 400 }}>{label}</span>
+              <span style={{ color: "#0f172a", fontSize: "12px", fontWeight: bold ? 800 : 500 }}>{value}</span>
+            </div>
+          ))}
+          {/* Grand Total */}
+          <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            borderTop: "2px solid #1769aa",
+            marginTop: "8px",
+            paddingTop: "8px",
+          }}>
+            <span style={{ fontWeight: 800, fontSize: "14px", color: "#0f172a" }}>TOTAL</span>
+            <span style={{ fontWeight: 900, fontSize: "16px", color: "#1769aa" }}>{formatCurrency(grandTotal)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── FOOTER ── */}
+      <div style={{
+        background: "#f8fafc",
+        border: "1px solid #e2e8f0",
+        borderTop: "none",
+        borderRadius: "0 0 10px 10px",
+        padding: "14px 28px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+      }}>
+        <div style={{ fontSize: "11px", color: "#64748b" }}>
+          <span style={{ fontWeight: 700, color: "#0f172a" }}>Thank you for choosing {shopName}!</span>
+          <span style={{ marginLeft: "6px" }}>• Warranty valid 30 days on service.</span>
+        </div>
+        <div style={{ fontSize: "10px", color: "#94a3b8" }}>
+          Generated by KARIGER ERP
+        </div>
+      </div>
+    </div>
   );
 }
 

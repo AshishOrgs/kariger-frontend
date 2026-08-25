@@ -228,3 +228,58 @@ not-used-yet {
     padding: 1rem !important;
   }
 }
+
+/* ── Print / PDF Invoice Styles ── */
+@media print {
+  /* Hide everything except the invoice document */
+  body {
+    background: #fff !important;
+    font-family: Inter, "Segoe UI", Arial, sans-serif !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Hide sidebar, topbar, nav, action buttons */
+  aside,
+  nav,
+  header:not(.invoice-print-header),
+  .no-print,
+  [class*="sidebar"],
+  [class*="topbar"],
+  [class*="PageHeader"],
+  [class*="CardHeader"]:not(.invoice-card-header) {
+    display: none !important;
+  }
+
+  /* Full-width invoice page */
+  .invoice-print-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    page-break-after: avoid;
+  }
+
+  /* Hide the main app layout wrappers */
+  #root > *:not(.invoice-print-page),
+  .xl\:grid-cols-\[minmax\(0\,1fr\)_minmax\(320px\,360px\)\] {
+    display: block !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Remove shadows and borders on cards for print */
+  [class*="shadow"], [class*="rounded"] {
+    box-shadow: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm 14mm 10mm 14mm;
+  }
+}
+

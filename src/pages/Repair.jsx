@@ -596,11 +596,12 @@ function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
 
   return (
     <div className="space-y-5">
-      {/* SINGLE UNIFIED TECHNICIAN REPORT CARD */}
-      <Card className="border border-slate-200 shadow-sm overflow-hidden rounded-xl">
-        <CardHeader className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+      {/* FORM-STYLE TECHNICIAN REPORT DOCUMENT */}
+      <Card className="border border-slate-200 shadow-md overflow-hidden rounded-2xl bg-white">
+        {/* Form Header */}
+        <CardHeader className="bg-slate-50/80 border-b border-slate-200 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/repair" className="text-xs font-bold text-slate-500 hover:text-[#1769aa] flex items-center gap-1">
+            <Link to="/repair" className="text-xs font-bold text-slate-500 hover:text-[#1769aa] transition flex items-center gap-1">
               ← Back
             </Link>
             <span className="h-4 w-px bg-slate-300"></span>
@@ -613,54 +614,66 @@ function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={ticket.status} />
-            <Link to={`/billing?ticketId=${ticket.id}`}>
-              <Button type="button" className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-9 px-4">
-                Go to Billing / Invoicing →
-              </Button>
-            </Link>
-          </div>
         </CardHeader>
 
         <CardContent className="p-6 space-y-6">
-          {/* Summary Grid */}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
-            <SummaryBlock label="Technician Name" value={technicianName} />
-            <SummaryBlock label="Extra Cost" value={formatCurrency(ticket.extraCost)} />
-            <SummaryBlock label="Used Parts Total" value={formatCurrency(partsTotal)} />
-            <SummaryBlock label="Total Repair Cost" value={formatCurrency(extraCostNum + partsTotal)} />
+          {/* Form Fields Grid — Key Financials & Details */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Technician Name
+              </label>
+              <p className="mt-1 text-sm font-bold text-slate-900">{technicianName}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Extra Cost
+              </label>
+              <p className="mt-1 text-sm font-bold text-slate-900">{formatCurrency(ticket.extraCost)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Used Parts Total
+              </label>
+              <p className="mt-1 text-sm font-bold text-slate-900">{formatCurrency(partsTotal)}</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3.5">
+              <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Total Repair Cost
+              </label>
+              <p className="mt-1 text-sm font-bold text-[#1769aa]">{formatCurrency(extraCostNum + partsTotal)}</p>
+            </div>
           </div>
 
-          {/* Technician Diagnosis & Execution Notes */}
-          <div className="space-y-2">
-            <label className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+          {/* Form Field — Technician Report / Diagnosis */}
+          <div className="space-y-1.5">
+            <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500">
               Technician Report / Diagnosis
             </label>
-            <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-900 whitespace-pre-wrap">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/30 p-4 text-sm font-medium text-slate-800 whitespace-pre-wrap min-h-[80px]">
               {technicianReport || "No technician report submitted yet."}
             </div>
           </div>
 
-          {/* Extra Cost Reason */}
+          {/* Form Field — Why Extra Cost? (if extra cost exists) */}
           {extraCostNum > 0 && (
-            <div className="space-y-2">
-              <label className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-amber-700">
                 Why Extra Cost? ({formatCurrency(extraCostNum)})
               </label>
-              <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm font-semibold text-amber-950">
+              <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 text-sm font-medium text-amber-950">
                 {ticket.extraCostReason || "Additional technician charge"}
               </div>
             </div>
           )}
 
-          {/* Used Item Parts Table */}
-          <div className="space-y-3">
+          {/* Form Field — Used Item Parts */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+              <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500">
                 Used Item Parts
               </label>
-              <span className="text-xs font-bold text-slate-700">Total: {formatCurrency(partsTotal)}</span>
+              <span className="text-xs font-bold text-slate-600">Total: {formatCurrency(partsTotal)}</span>
             </div>
 
             <div className="rounded-xl border border-slate-200 overflow-hidden">
@@ -695,10 +708,10 @@ function TechnicianReportView({ ticket, partsUsage = [], isLoading }) {
             </div>
           </div>
 
-          {/* Footer Action */}
-          <div className="pt-2 flex justify-end border-t border-slate-100">
+          {/* Form Action Footer */}
+          <div className="pt-4 flex justify-end border-t border-slate-100">
             <Link to={`/billing?ticketId=${ticket.id}`}>
-              <Button type="button" className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-sm h-10 px-5">
+              <Button type="button" className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-sm h-10 px-6 shadow-sm">
                 Go to Billing / Invoicing →
               </Button>
             </Link>

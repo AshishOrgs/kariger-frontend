@@ -268,20 +268,21 @@ export function CreateRepair() {
                           <p className="text-xs text-slate-400">Customer: {t.customer.fullName}</p>
                         )}
                       </div>
-                      {/* Step buttons — horizontally inline with ticket info */}
+                      {/* Step buttons — smooth & subtle highlight */}
                       <div className="flex items-center gap-2 shrink-0">
                         {/* Step 1: Estimate */}
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 1</span>
                           {hasEstimate ? (
-                            <span className="inline-flex items-center justify-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 border border-emerald-200 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center justify-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 border border-emerald-200/70 whitespace-nowrap">
                               ✓ Estimate Done
                             </span>
                           ) : (
                             <Button
                               size="sm"
                               type="button"
-                              className="bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-8 px-3 whitespace-nowrap"
+                              variant="outline"
+                              className="border-blue-300 bg-blue-50/60 text-[#1769aa] hover:bg-blue-100/80 font-semibold text-xs h-8 px-3 whitespace-nowrap transition-colors"
                               onClick={() => {
                                 setEstimateTicket(t);
                                 setOpenEstimateModal(true);
@@ -291,8 +292,10 @@ export function CreateRepair() {
                             </Button>
                           )}
                         </div>
+
                         {/* Arrow */}
-                        <ArrowRight className="h-4 w-4 text-slate-300 shrink-0 mt-3" />
+                        <ArrowRight className="h-3.5 w-3.5 text-slate-300 shrink-0 mt-3" />
+
                         {/* Step 2: Assign Technician */}
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Step 2</span>
@@ -300,12 +303,12 @@ export function CreateRepair() {
                             <Button
                               size="sm"
                               type="button"
+                              variant="outline"
                               className={
                                 hasEstimate && !hasAssignment
-                                  ? "bg-[#1769aa] hover:bg-[#125388] text-white font-bold text-xs h-8 px-3 animate-pulse whitespace-nowrap"
-                                  : "border border-slate-300 text-slate-600 font-bold text-xs h-8 px-3 hover:bg-slate-50 whitespace-nowrap"
+                                  ? "border-blue-400 bg-blue-50 text-[#1769aa] font-semibold text-xs h-8 px-3 whitespace-nowrap hover:bg-blue-100 transition-colors shadow-xs"
+                                  : "border-slate-200 text-slate-600 font-medium text-xs h-8 px-3 hover:bg-slate-50 whitespace-nowrap transition-colors"
                               }
-                              variant={hasEstimate && !hasAssignment ? "default" : "secondary"}
                             >
                               Assign Technician
                             </Button>

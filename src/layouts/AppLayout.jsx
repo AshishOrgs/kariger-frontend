@@ -443,7 +443,11 @@ function lockReasonText(reason) {
 }
 
 function isApprovalPending(subscription) {
-  return subscription?.effectiveStatus === "APPROVAL_PENDING";
+  return (
+    subscription?.effectiveStatus === "APPROVAL_PENDING" ||
+    subscription?.metadata?.paymentRequest?.status === "REQUESTED" ||
+    subscription?.status === "PENDING"
+  );
 }
 
 function planLabel(subscription) {
@@ -559,102 +563,116 @@ function rememberActivationRequestSent(subscription) {
 }
 
 function LockedWorkspaceOverlay({ subscription, user, updateSubscription, onLogout }) {
-  const [contacting, setContacting] = useState(false);
-  const [activationRequestSent, setActivationRequestSent] = useState(() => readActivationRequestSent(subscription));
   const canManageSubscription = Array.isArray(user?.permissions) && user.permissions.includes(PERMISSIONS.SUBSCRIPTION_MANAGE);
   const approvalPending = isApprovalPending(subscription);
-  const supportWhatsApp = user?.business?.supportWhatsapp || import.meta.env.VITE_PAY_WHATSAPP;
-  const requestSent = approvalPending && (activationRequestSent || paymentRequestStatus(subscription) === "REQUESTED");
-  const title = requestSent ? "Request Sent" : approvalPending ? "Approval Pending" : "Subscription Expired";
-  const status = subscription?.effectiveStatus || subscription?.status || (approvalPending ? "APPROVAL_PENDING" : "EXPIRED");
-  const message = requestSent
-    ? "Thank you. Your activation request has been sent to KARIGER.\n\nOur team will review it shortly, and your workspace will unlock automatically as soon as approval is complete."
-    : approvalPending
-    ? "Your current plan limit has been reached.\n\nUpgrade your subscription to add more."
+  const reqId = paymentRequestId(subscription);
+  const title = approvalPending ? "Renewal Pending Approval" : "Subscription Expired";
+  const message = approvalPending
+    ? "Your renewal request has been received by KARIGER SuperAdmin.\n\nOur team is verifying your payment. Your workspace will unlock automatically once approval is completed."
     : `${lockReasonText(subscription?.trialExpiryReason)} Renew your subscription to continue using KARIGER.`;
-  const handleContactOwner = async () => {
-    setContacting(true);
-    let messageSubscription = subscription;
-    try {
-      if (paymentRequestStatus(messageSubscription) !== "REQUESTED") {
-        const response = await subscriptionApi.requestPayment({
-          plan: messageSubscription?.plan || "STARTER",
-          durationDays: 30,
-        });
-        if (response.data?.subscription) {
-          messageSubscription = response.data.subscription;
-          updateSubscription?.(response.data.subscription);
-        }
-      }
-    } catch (error) {
-      setContacting(false);
-      window.alert(error?.response?.data?.message || "Unable to prepare activation request.");
-      return;
-    }
-
-    const opened = openWhatsApp({
-      phone: supportWhatsApp,
-      message: buildOwnerActivationMessage({ subscription: messageSubscription, user }),
-    });
-    setContacting(false);
-    if (!opened) {
-      window.alert("WhatsApp number is not configured.");
-      return;
-    }
-    rememberActivationRequestSent(messageSubscription);
-    setActivationRequestSent(true);
-  };
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/55 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-lg border border-white/70 bg-white p-6 text-center shadow-2xl">
-        <div className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-[linear-gradient(135deg,#e0f2fe,#ecfeff)] shadow-inner">
-          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-white shadow-lg">
-            <LockKeyhole className="h-8 w-8" />
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 px-4 backdrop-blur-md">
+      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-white/80 bg-white p-6 text-center shadow-2xl shadow-slate-950/30">
+        <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[linear-gradient(135deg,#e0f2fe,#ecfeff)] shadow-inner">
+          <div className="grid h-14 w-14 place-items-center rounded-2xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-white shadow-md">
+            <LockKeyhole className="h-7 w-7" />
           </div>
         </div>
 
-        <div className="mt-5 flex items-center justify-center gap-2 text-[var(--primary)]">
+        <div className="mt-4 flex items-center justify-center gap-1.5 text-[var(--primary)]">
           <Sparkles className="h-4 w-4" />
-          <span className="text-xs font-black uppercase tracking-wider">Workspace Locked</span>
+          <span className="text-[11px] font-black uppercase tracking-wider">Workspace Locked</span>
         </div>
 
-        <h2 className="mt-2 text-2xl font-black text-slate-950">{title}</h2>
-        <p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-600">
+        <h2 className="mt-1 text-2xl font-black text-slate-900">{title}</h2>
+        <p className="mt-1.5 whitespace-pre-line text-xs leading-5 text-slate-600">
           {message}
         </p>
 
-        <div className="mt-5 grid gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-left text-sm">
-          <p className="mb-1 text-xs font-black uppercase tracking-wider text-slate-500">Subscription Details</p>
-          <DetailRow label="Current Plan" value={planLabel(subscription)} />
-          <DetailRow label="Status" value={status} danger={!approvalPending} />
-          <DetailRow label="Started On" value={formatDate(subscription?.trialStartedAt)} />
-          <DetailRow label={approvalPending ? "Locked On" : "Expired On"} value={formatDate(subscription?.expiredOn, approvalPending ? "Approval required" : "Usage limit reached")} />
-        </div>
+        {approvalPending && reqId ? (
+          <div className="mt-4 rounded-xl border border-amber-200 bg-[linear-gradient(135deg,#fffbeb,#fef3c7)] p-3 text-left text-xs text-amber-950 shadow-sm">
+            <div className="flex items-center justify-between font-bold text-amber-900">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                Request Submitted
+              </span>
+              <span className="font-mono text-[11px] bg-amber-200/70 px-2 py-0.5 rounded text-amber-950">
+                {reqId}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[11px] text-amber-800 leading-snug">
+              No further action is required. Please wait while SuperAdmin approves your request.
+            </p>
+          </div>
+        ) : null}
 
-        <div className="mt-3 grid gap-2 rounded-md border border-slate-200 bg-white p-3 text-left text-sm">
-          <p className="mb-1 text-xs font-black uppercase tracking-wider text-slate-500">Current Usage</p>
-          <DetailRow label="Branches" value={usageLabel(subscription?.branchCount, subscription?.branchLimit)} />
-          <DetailRow label="Devices" value={usageLabel(subscription?.trialDevicesUsed, subscription?.trialDeviceLimit)} />
-          <DetailRow label="Staff" value={usageLabel(subscription?.staffCount, subscription?.staffLimit)} />
+        <div className="mt-4 grid gap-3 text-left text-xs sm:grid-cols-2">
+          {/* Subscription Info Box */}
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Subscription Info</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-500">Plan</span>
+                <span className="font-bold text-slate-900">{planLabel(subscription)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-500">Status</span>
+                {approvalPending ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-800">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Pending Approval
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-bold text-red-700">
+                    Expired
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-500">Started On</span>
+                <span className="font-semibold text-slate-800">{formatDate(subscription?.trialStartedAt)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-500">{approvalPending ? "Locked On" : "Expired On"}</span>
+                <span className="font-semibold text-slate-800">{formatDate(subscription?.expiredOn, approvalPending ? "Approval required" : "Limit reached")}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Current Usage Box */}
+          <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 shadow-sm">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Current Usage</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-500">Branches</span>
+                <span className="font-bold text-slate-900">{usageLabel(subscription?.branchCount, subscription?.branchLimit)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-500">Devices</span>
+                <span className="font-bold text-slate-900">{usageLabel(subscription?.trialDevicesUsed, subscription?.trialDeviceLimit)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-slate-500">Staff</span>
+                <span className="font-bold text-slate-900">{usageLabel(subscription?.staffCount, subscription?.staffLimit)}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {approvalPending ? (
-          <div className="mt-6 space-y-2">
-            <Button className="w-full" type="button" onClick={handleContactOwner} disabled={contacting || requestSent}>
-              {requestSent ? "Activation Request Sent" : contacting ? "Preparing Request..." : "Contact KARIGER Owner"}
-            </Button>
+          <div className="mt-5 space-y-2">
+            <Link to="/subscription" className="block w-full">
+              <Button className="w-full" type="button" variant="outline">
+                View Subscription Details
+              </Button>
+            </Link>
             <Button className="w-full" type="button" variant="secondary" onClick={onLogout}>
               Decide Later / Logout
             </Button>
-            {requestSent ? (
-              <p className="mt-3 rounded-md bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-                No further action is needed right now. This page will update automatically after approval.
-              </p>
-            ) : null}
           </div>
         ) : canManageSubscription ? (
-          <div className="mt-6 space-y-2">
+          <div className="mt-5 space-y-2">
             <Link to="/subscription" className="block w-full">
               <Button className="w-full" type="button">Renew Subscription</Button>
             </Link>
@@ -663,8 +681,8 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription, onLogo
             </Button>
           </div>
         ) : (
-          <div className="mt-6 space-y-2">
-            <p className="rounded-md bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-700">
+          <div className="mt-5 space-y-2">
+            <p className="rounded-md bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-700">
               Please contact the business owner to activate the subscription.
             </p>
             <Button className="w-full" type="button" variant="secondary" onClick={onLogout}>

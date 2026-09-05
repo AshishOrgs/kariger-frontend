@@ -138,12 +138,23 @@ export function Subscription() {
                 />
               </div>
               {displaySubscription.metadata?.paymentRequest ? (
-                <div className="mt-4 rounded-md border border-[var(--border)] bg-slate-50 p-4 text-sm">
-                  <p className="font-semibold">Latest payment request</p>
-                  <p className="mt-1 text-[var(--muted)]">
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  <div className="flex items-center justify-between font-bold text-amber-900">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                      Pending Renewal Request
+                    </span>
+                    <span className="font-mono text-xs text-amber-800">
+                      ID: {displaySubscription.metadata.paymentRequest.paymentRequestId || displaySubscription.metadata.paymentRequest.id}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-amber-900 font-medium">
                     {displaySubscription.metadata.paymentRequest.serviceName} ·{" "}
                     {displaySubscription.metadata.paymentRequest.durationDays} days ·{" "}
                     {formatCurrency(displaySubscription.metadata.paymentRequest.price)}
+                  </p>
+                  <p className="mt-2 text-xs text-amber-800">
+                    Your request has been submitted to SuperAdmin. Your workspace will automatically unlock upon payment approval.
                   </p>
                 </div>
               ) : null}
@@ -210,7 +221,11 @@ export function Subscription() {
               ) : null}
               <Button className="w-full" disabled={paymentMutation.isPending || !selectedPlan} onClick={handlePay}>
                 <Send className="h-4 w-4" />
-                {paymentMutation.isPending ? "Preparing..." : "Start Subscription"}
+                {paymentMutation.isPending
+                  ? "Preparing..."
+                  : displaySubscription.metadata?.paymentRequest?.status === "REQUESTED"
+                  ? "Re-send WhatsApp Request"
+                  : "Start Subscription"}
               </Button>
             </CardContent>
           </Card>

@@ -567,9 +567,6 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription, onLogo
   const approvalPending = isApprovalPending(subscription);
   const reqId = paymentRequestId(subscription);
   const title = approvalPending ? "Renewal Pending Approval" : "Subscription Expired";
-  const message = approvalPending
-    ? "Your renewal request has been received by KARIGER SuperAdmin.\n\nOur team is verifying your payment. Your workspace will unlock automatically once approval is completed."
-    : `${lockReasonText(subscription?.trialExpiryReason)} Renew your subscription to continue using KARIGER.`;
 
   return (
     <div className="fixed inset-0 z-[70] grid place-items-center bg-slate-950/60 px-4 backdrop-blur-md">
@@ -585,25 +582,18 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription, onLogo
           <span className="text-[11px] font-black uppercase tracking-wider">Workspace Locked</span>
         </div>
 
-        <h2 className="mt-1 text-2xl font-black text-slate-900">{title}</h2>
-        <p className="mt-1.5 whitespace-pre-line text-xs leading-5 text-slate-600">
-          {message}
+        <h2 className="mt-1.5 text-xl font-black text-slate-900">{title}</h2>
+        <p className="mt-1 text-xs text-slate-500">
+          {approvalPending
+            ? "Request submitted. Workspace unlocks automatically once approved."
+            : `${lockReasonText(subscription?.trialExpiryReason)} Renew to continue.`}
         </p>
 
         {approvalPending && reqId ? (
-          <div className="mt-4 rounded-xl border border-amber-200 bg-[linear-gradient(135deg,#fffbeb,#fef3c7)] p-3 text-left text-xs text-amber-950 shadow-sm">
-            <div className="flex items-center justify-between font-bold text-amber-900">
-              <span className="flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                Request Submitted
-              </span>
-              <span className="font-mono text-[11px] bg-amber-200/70 px-2 py-0.5 rounded text-amber-950">
-                {reqId}
-              </span>
-            </div>
-            <p className="mt-1.5 text-[11px] text-amber-800 leading-snug">
-              No further action is required. Please wait while SuperAdmin approves your request.
-            </p>
+          <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
+            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+            <span>Request ID:</span>
+            <span className="font-mono font-bold text-amber-950">{reqId}</span>
           </div>
         ) : null}
 

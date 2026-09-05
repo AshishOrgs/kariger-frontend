@@ -233,12 +233,9 @@ function LimitReachedModal({ details, onClose }) {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-2 sm:grid-cols-2">
-          <Button type="button" onClick={() => { onClose(); window.location.assign("/subscription"); }}>
+        <div className="mt-5">
+          <Button className="w-full" type="button" onClick={() => { onClose(); window.location.assign("/subscription"); }}>
             Start Subscription
-          </Button>
-          <Button type="button" variant="secondary" onClick={() => { onClose(); window.location.assign("/subscription"); }}>
-            Contact on WhatsApp
           </Button>
         </div>
       </div>

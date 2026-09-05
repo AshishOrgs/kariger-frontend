@@ -654,14 +654,11 @@ function LockedWorkspaceOverlay({ subscription, user, updateSubscription, onLogo
             ) : null}
           </div>
         ) : canManageSubscription ? (
-          <div className="mt-6 grid gap-2 sm:grid-cols-2">
-            <Link to="/subscription">
+          <div className="mt-6 space-y-2">
+            <Link to="/subscription" className="block w-full">
               <Button className="w-full" type="button">Renew Subscription</Button>
             </Link>
-            <Link to="/subscription">
-              <Button className="w-full" type="button" variant="secondary">Contact on WhatsApp</Button>
-            </Link>
-            <Button className="w-full sm:col-span-2" type="button" variant="secondary" onClick={onLogout}>
+            <Button className="w-full" type="button" variant="secondary" onClick={onLogout}>
               Decide Later / Logout
             </Button>
           </div>

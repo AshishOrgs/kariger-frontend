@@ -180,7 +180,7 @@ export function SuperAdminBusinesses() {
       </div>
 
       {/* Plan-Wise Filter Tabs */}
-      <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200/80 bg-slate-100/70 p-1.5">
+      <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/90 p-1 border border-slate-200/70">
         {PLAN_TABS.map((tab) => {
           const isActive = activePlanTab === tab.key;
           const count = tabCounts[tab.key] || 0;
@@ -191,10 +191,10 @@ export function SuperAdminBusinesses() {
               type="button"
               onClick={() => handleSelectTab(tab.key)}
               className={cn(
-                "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
                 isActive
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+                  ? "bg-white text-slate-900 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
               )}
             >
               <span>{tab.label}</span>
@@ -205,7 +205,7 @@ export function SuperAdminBusinesses() {
                     ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
                     : isActive
                     ? "bg-slate-100 text-slate-800"
-                    : "bg-slate-200/70 text-slate-600"
+                    : "bg-slate-200/70 text-slate-500"
                 )}
               >
                 {count}
@@ -215,27 +215,27 @@ export function SuperAdminBusinesses() {
         })}
       </div>
 
-      <Card className="border-slate-200/80 shadow-sm">
-        {/* Search and Secondary Filter Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
-          <div className="relative flex-1 min-w-[240px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+      <Card className="border-slate-200/80 shadow-sm overflow-hidden">
+        {/* Compact Search and Secondary Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by business, slug, owner, phone, email..."
-              className="h-9 pl-9 text-xs"
+              placeholder="Search by business, slug, owner, phone..."
+              className="h-8 pl-8 text-xs bg-white rounded-lg"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
-              <Filter className="h-3.5 w-3.5" />
+              <Filter className="h-3.5 w-3.5 text-slate-400" />
               <span>Status:</span>
               <Select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-8.5 text-xs py-1 w-32"
+                className="h-8 text-xs py-0.5 w-28 bg-white"
               >
                 <option value="ALL">All Status</option>
                 <option value="ACTIVE">Active</option>
@@ -243,12 +243,13 @@ export function SuperAdminBusinesses() {
               </Select>
             </div>
 
-            <div className="hidden sm:flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1 text-xs text-slate-500 border border-slate-100">
-              <span>Showing <strong className="text-slate-800">{filteredBusinesses.length}</strong> of {allBusinesses.length} shops</span>
+            <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span><strong>{filteredBusinesses.length}</strong> shops</span>
               <span>·</span>
-              <span><strong className="text-slate-800">{totalUsersInFiltered}</strong> platform users</span>
+              <span><strong>{totalUsersInFiltered}</strong> users</span>
               <span>·</span>
-              <span><strong className="text-slate-800">{totalBranchesInFiltered}</strong> branches</span>
+              <span><strong>{totalBranchesInFiltered}</strong> branches</span>
             </div>
           </div>
         </div>
@@ -258,20 +259,25 @@ export function SuperAdminBusinesses() {
           isLoading={businessesQuery.isLoading}
           error={businessesQuery.error}
           onRetry={businessesQuery.refetch}
+          searchable={false}
           emptyTitle="No businesses match the selected filters"
           columns={[
             {
               key: "name",
               header: "Business Tenant",
               render: (business) => (
-                <div>
+                <div className="max-w-[200px]">
                   <div className="flex items-center gap-1.5">
-                    <p className="font-bold text-slate-900">{business.name}</p>
-                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">
-                      {business.slug}
+                    <p className="font-bold text-xs text-slate-900 truncate" title={business.name}>
+                      {business.name}
+                    </p>
+                    <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold shrink-0">
+                      {business.slug?.length > 14 ? `${business.slug.slice(0, 14)}...` : business.slug}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Registered: {formatDate(business.createdAt)}</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                    {formatDate(business.createdAt)}
+                  </p>
                 </div>
               ),
             },
@@ -281,20 +287,22 @@ export function SuperAdminBusinesses() {
               render: (business) => {
                 const owner = business.owner;
                 return (
-                  <div>
-                    <p className="font-semibold text-xs text-slate-800">{owner?.fullName || "Not assigned"}</p>
-                    <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-slate-500">
+                  <div className="max-w-[190px]">
+                    <p className="font-semibold text-xs text-slate-800 truncate" title={owner?.fullName}>
+                      {owner?.fullName || "Not assigned"}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
                       {owner?.phone ? (
                         <a
                           href={`tel:${owner.phone}`}
-                          className="inline-flex items-center gap-1 font-mono text-blue-600 hover:underline"
+                          className="inline-flex items-center gap-0.5 font-mono text-blue-600 hover:underline shrink-0"
                         >
-                          <Phone className="h-3 w-3" />
+                          <Phone className="h-2.5 w-2.5" />
                           {owner.phone}
                         </a>
                       ) : null}
                       {owner?.email ? (
-                        <span className="truncate max-w-[140px]" title={owner.email}>
+                        <span className="truncate text-slate-400" title={owner.email}>
                           {owner.email}
                         </span>
                       ) : null}
@@ -311,14 +319,16 @@ export function SuperAdminBusinesses() {
                 const isPending = hasApprovalRequest(sub);
                 const planName = sub?.plan || "TRIAL";
                 return (
-                  <div>
+                  <div className="space-y-0.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-xs text-slate-900">{planName}</span>
+                      <span className="font-bold text-[10px] uppercase tracking-wider text-slate-800">
+                        {planName}
+                      </span>
                       <StatusBadge status={isPending ? "APPROVAL_REQUESTED" : sub?.status || "NOT_SELECTED"} />
                     </div>
                     {sub?.daysRemaining !== undefined && sub?.daysRemaining !== null ? (
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        {sub.daysRemaining > 0 ? `${sub.daysRemaining} days left` : "Expired"}
+                      <p className="text-[10px] text-slate-400">
+                        {sub.daysRemaining > 0 ? `${sub.daysRemaining}d left` : "Expired"}
                       </p>
                     ) : null}
                   </div>
@@ -327,10 +337,10 @@ export function SuperAdminBusinesses() {
             },
             {
               key: "staff",
-              header: "Platform Users",
+              header: "Users",
               render: (business) => (
-                <div className="flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-slate-400" />
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3 text-slate-400" />
                   <span className="font-bold text-xs text-slate-800">{business.counts?.staff || 0}</span>
                 </div>
               ),
@@ -339,9 +349,9 @@ export function SuperAdminBusinesses() {
               key: "branches",
               header: "Branches",
               render: (business) => (
-                <div className="flex items-center gap-1.5">
-                  <GitBranch className="h-3.5 w-3.5 text-slate-400" />
-                  <span className="font-semibold text-xs text-slate-700">{business.counts?.branches || 0}</span>
+                <div className="flex items-center gap-1">
+                  <GitBranch className="h-3 w-3 text-slate-400" />
+                  <span className="text-xs font-semibold text-slate-700">{business.counts?.branches || 0}</span>
                 </div>
               ),
             },
@@ -354,7 +364,7 @@ export function SuperAdminBusinesses() {
             },
             {
               key: "status",
-              header: "Tenant State",
+              header: "State",
               render: (business) => <StatusBadge status={business.status} />,
             },
             {
@@ -364,25 +374,31 @@ export function SuperAdminBusinesses() {
                 const isSuspended = business.status === "SUSPENDED";
                 const isPending = hasApprovalRequest(business.subscription);
                 return (
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 whitespace-nowrap">
+                    {isPending ? (
+                      <Link to={`/super-admin/businesses/${business.id}`}>
+                        <Button
+                          size="sm"
+                          className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs whitespace-nowrap"
+                        >
+                          Approve
+                        </Button>
+                      </Link>
+                    ) : null}
                     <Link to={`/super-admin/businesses/${business.id}`}>
                       <Button
                         size="sm"
-                        variant={isPending ? "primary" : "secondary"}
-                        className={cn(
-                          "h-8 text-xs font-bold gap-1 shadow-2xs",
-                          isPending ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
-                        )}
+                        variant="secondary"
+                        className="h-7 px-2.5 text-[11px] font-semibold whitespace-nowrap"
                       >
-                        {isPending ? "Approve & Manage" : "Manage Tenant"}
-                        <ArrowRight className="h-3 w-3" />
+                        Manage
                       </Button>
                     </Link>
                     <Button
                       size="sm"
                       variant={isSuspended ? "primary" : "ghost"}
                       disabled={statusMutation.isPending}
-                      className="h-8 text-xs font-semibold"
+                      className="h-7 px-2 text-[11px] text-slate-500 hover:text-rose-600 font-medium whitespace-nowrap"
                       onClick={() =>
                         statusMutation.mutate({
                           id: business.id,

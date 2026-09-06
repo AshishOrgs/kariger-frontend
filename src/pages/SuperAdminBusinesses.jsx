@@ -1,7 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { Building2, GitBranch, Users } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  AlertCircle,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Clock,
+  Filter,
+  GitBranch,
+  Phone,
+  Search,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+  Zap,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
@@ -30,15 +44,30 @@ function hasApprovalRequest(subscription) {
   return subscription?.metadata?.paymentRequest?.status === "REQUESTED";
 }
 
+const PLAN_TABS = [
+  { key: "ALL", label: "All Tenants" },
+  { key: "STARTER", label: "Starter" },
+  { key: "GROWTH", label: "Growth" },
+  { key: "ENTERPRISE", label: "Enterprise" },
+  { key: "TRIAL", label: "Free Trial" },
+  { key: "PENDING", label: "Approvals Pending" },
+];
+
 export function SuperAdminBusinesses() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const activePlanTab = searchParams.get("plan") || "ALL";
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
   const businessesQuery = useQuery({
     queryKey: ["super-admin-businesses"],
     queryFn: () => superAdminApi.businesses(),
   });
 
-  const businesses = businessesQuery.data?.data?.businesses || [];
+  const allBusinesses = businessesQuery.data?.data?.businesses || [];
 
   const statusMutation = useMutation({
     mutationFn: ({ id, action }) =>
@@ -54,84 +83,306 @@ export function SuperAdminBusinesses() {
     },
   });
 
-  return (
-    <div>
-      <PageHeader
-        title="Businesses"
-        description="SaaS tenant list for super admin operations."
-      />
+  // Calculate tab counts
+  const tabCounts = useMemo(() => {
+    const counts = { ALL: allBusinesses.length, STARTER: 0, GROWTH: 0, ENTERPRISE: 0, TRIAL: 0, PENDING: 0 };
+    for (const b of allBusinesses) {
+      const plan = b.subscription?.plan;
+      if (plan === "STARTER") counts.STARTER += 1;
+      else if (plan === "GROWTH") counts.GROWTH += 1;
+      else if (plan === "ENTERPRISE") counts.ENTERPRISE += 1;
+      else counts.TRIAL += 1;
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Business Tenants</CardTitle>
-        </CardHeader>
+      if (hasApprovalRequest(b.subscription) || b.subscription?.status === "PENDING") {
+        counts.PENDING += 1;
+      }
+    }
+    return counts;
+  }, [allBusinesses]);
+
+  // Filter businesses
+  const filteredBusinesses = useMemo(() => {
+    return allBusinesses.filter((b) => {
+      // 1. Plan Tab filter
+      if (activePlanTab === "PENDING") {
+        const isPending = hasApprovalRequest(b.subscription) || b.subscription?.status === "PENDING";
+        if (!isPending) return false;
+      } else if (activePlanTab === "TRIAL") {
+        const isStandard = ["STARTER", "GROWTH", "ENTERPRISE"].includes(b.subscription?.plan);
+        if (isStandard) return false;
+      } else if (activePlanTab !== "ALL") {
+        if (b.subscription?.plan !== activePlanTab) return false;
+      }
+
+      // 2. Status filter
+      if (statusFilter !== "ALL" && b.status !== statusFilter) {
+        return false;
+      }
+
+      // 3. Search query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const name = (b.name || "").toLowerCase();
+        const slug = (b.slug || "").toLowerCase();
+        const ownerName = (b.owner?.fullName || "").toLowerCase();
+        const ownerEmail = (b.owner?.email || "").toLowerCase();
+        const ownerPhone = (b.owner?.phone || "").toLowerCase();
+        const reqId = (b.subscription?.metadata?.paymentRequest?.id || "").toLowerCase();
+        if (
+          !name.includes(query) &&
+          !slug.includes(query) &&
+          !ownerName.includes(query) &&
+          !ownerEmail.includes(query) &&
+          !ownerPhone.includes(query) &&
+          !reqId.includes(query)
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [allBusinesses, activePlanTab, statusFilter, searchQuery]);
+
+  const totalUsersInFiltered = useMemo(() => {
+    return filteredBusinesses.reduce((acc, b) => acc + (b.counts?.staff || 0), 0);
+  }, [filteredBusinesses]);
+
+  const totalBranchesInFiltered = useMemo(() => {
+    return filteredBusinesses.reduce((acc, b) => acc + (b.counts?.branches || 0), 0);
+  }, [filteredBusinesses]);
+
+  const handleSelectTab = (tabKey) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tabKey === "ALL") {
+      nextParams.delete("plan");
+    } else {
+      nextParams.set("plan", tabKey);
+    }
+    setSearchParams(nextParams);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <PageHeader
+          title="Tenant Businesses"
+          description="SaaS tenant control directory with plan filtering, platform user volume, and subscription management."
+        />
+        <div className="flex items-center gap-2">
+          <Link to="/super-admin/dashboard">
+            <Button variant="secondary" size="sm" className="gap-1.5 text-xs font-semibold">
+              <Zap className="h-3.5 w-3.5" />
+              Platform Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Plan-Wise Filter Tabs */}
+      <div className="flex flex-wrap gap-1.5 rounded-xl border border-slate-200/80 bg-slate-100/70 p-1.5">
+        {PLAN_TABS.map((tab) => {
+          const isActive = activePlanTab === tab.key;
+          const count = tabCounts[tab.key] || 0;
+          const isPendingTab = tab.key === "PENDING";
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => handleSelectTab(tab.key)}
+              className={cn(
+                "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-bold transition",
+                isActive
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-600 hover:bg-white/60 hover:text-slate-900"
+              )}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.2 text-[10px] font-bold",
+                  isPendingTab && count > 0
+                    ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
+                    : isActive
+                    ? "bg-slate-100 text-slate-800"
+                    : "bg-slate-200/70 text-slate-600"
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <Card className="border-slate-200/80 shadow-sm">
+        {/* Search and Secondary Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4">
+          <div className="relative flex-1 min-w-[240px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by business, slug, owner, phone, email..."
+              className="h-9 pl-9 text-xs"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Filter className="h-3.5 w-3.5" />
+              <span>Status:</span>
+              <Select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-8.5 text-xs py-1 w-32"
+              >
+                <option value="ALL">All Status</option>
+                <option value="ACTIVE">Active</option>
+                <option value="SUSPENDED">Suspended</option>
+              </Select>
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1 text-xs text-slate-500 border border-slate-100">
+              <span>Showing <strong className="text-slate-800">{filteredBusinesses.length}</strong> of {allBusinesses.length} shops</span>
+              <span>·</span>
+              <span><strong className="text-slate-800">{totalUsersInFiltered}</strong> platform users</span>
+              <span>·</span>
+              <span><strong className="text-slate-800">{totalBranchesInFiltered}</strong> branches</span>
+            </div>
+          </div>
+        </div>
+
         <DataTable
-          rows={businesses}
+          rows={filteredBusinesses}
           isLoading={businessesQuery.isLoading}
           error={businessesQuery.error}
           onRetry={businessesQuery.refetch}
-          searchable
-          emptyTitle="No businesses found"
+          emptyTitle="No businesses match the selected filters"
           columns={[
             {
               key: "name",
-              header: "Business",
+              header: "Business Tenant",
               render: (business) => (
                 <div>
-                  <p className="font-semibold">{business.name}</p>
-                  <p className="text-xs text-[var(--muted)]">{business.slug}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-slate-900">{business.name}</p>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">
+                      {business.slug}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Registered: {formatDate(business.createdAt)}</p>
                 </div>
               ),
             },
             {
               key: "owner",
-              header: "Owner",
-              render: (business) => ownerLabel(business.owner),
+              header: "Owner & Contact",
+              render: (business) => {
+                const owner = business.owner;
+                return (
+                  <div>
+                    <p className="font-semibold text-xs text-slate-800">{owner?.fullName || "Not assigned"}</p>
+                    <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-slate-500">
+                      {owner?.phone ? (
+                        <a
+                          href={`tel:${owner.phone}`}
+                          className="inline-flex items-center gap-1 font-mono text-blue-600 hover:underline"
+                        >
+                          <Phone className="h-3 w-3" />
+                          {owner.phone}
+                        </a>
+                      ) : null}
+                      {owner?.email ? (
+                        <span className="truncate max-w-[140px]" title={owner.email}>
+                          {owner.email}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              },
             },
             {
               key: "plan",
-              header: "Plan",
-              render: (business) => planLabel(business.subscription),
+              header: "Plan & Tier",
+              render: (business) => {
+                const sub = business.subscription;
+                const isPending = hasApprovalRequest(sub);
+                const planName = sub?.plan || "TRIAL";
+                return (
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-xs text-slate-900">{planName}</span>
+                      <StatusBadge status={isPending ? "APPROVAL_REQUESTED" : sub?.status || "NOT_SELECTED"} />
+                    </div>
+                    {sub?.daysRemaining !== undefined && sub?.daysRemaining !== null ? (
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        {sub.daysRemaining > 0 ? `${sub.daysRemaining} days left` : "Expired"}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              },
+            },
+            {
+              key: "staff",
+              header: "Platform Users",
+              render: (business) => (
+                <div className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="font-bold text-xs text-slate-800">{business.counts?.staff || 0}</span>
+                </div>
+              ),
             },
             {
               key: "branches",
               header: "Branches",
-              render: (business) => business.counts?.branches || 0,
-            },
-            {
-              key: "staff",
-              header: "Staff",
-              render: (business) => business.counts?.staff || 0,
+              render: (business) => (
+                <div className="flex items-center gap-1.5">
+                  <GitBranch className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="font-semibold text-xs text-slate-700">{business.counts?.branches || 0}</span>
+                </div>
+              ),
             },
             {
               key: "devices",
               header: "Devices",
-              render: (business) => business.counts?.tickets || 0,
+              render: (business) => (
+                <span className="text-xs text-slate-600">{business.counts?.tickets || 0} tickets</span>
+              ),
             },
             {
               key: "status",
-              header: "Status",
+              header: "Tenant State",
               render: (business) => <StatusBadge status={business.status} />,
             },
             {
-              key: "createdAt",
-              header: "Created",
-              render: (business) => formatDate(business.createdAt),
-            },
-            {
               key: "actions",
-              header: "Action",
+              header: "Management",
               render: (business) => {
                 const isSuspended = business.status === "SUSPENDED";
+                const isPending = hasApprovalRequest(business.subscription);
                 return (
-                  <div className="flex flex-wrap gap-2">
-                    <ActionLink to={`/super-admin/businesses/${business.id}`}>
-                      Owner Details
-                    </ActionLink>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link to={`/super-admin/businesses/${business.id}`}>
+                      <Button
+                        size="sm"
+                        variant={isPending ? "primary" : "secondary"}
+                        className={cn(
+                          "h-8 text-xs font-bold gap-1 shadow-2xs",
+                          isPending ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""
+                        )}
+                      >
+                        {isPending ? "Approve & Manage" : "Manage Tenant"}
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
+                    </Link>
                     <Button
                       size="sm"
-                      variant={isSuspended ? "primary" : "secondary"}
+                      variant={isSuspended ? "primary" : "ghost"}
                       disabled={statusMutation.isPending}
+                      className="h-8 text-xs font-semibold"
                       onClick={() =>
                         statusMutation.mutate({
                           id: business.id,
@@ -157,7 +408,7 @@ function ActionLink({ to, children }) {
     <Link
       to={to}
       className={cn(
-        "focus-ring inline-flex h-9 items-center justify-center rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-slate-50"
+        "focus-ring inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white px-3 text-xs font-semibold text-[var(--foreground)] transition hover:bg-slate-50"
       )}
     >
       {children}

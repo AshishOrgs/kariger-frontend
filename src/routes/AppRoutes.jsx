@@ -74,6 +74,14 @@ function SuperAdminBusinessDetailsRoute() {
   return <SuperAdminBusinessDetails id={id} />;
 }
 
+function DashboardRoute() {
+  const { hasPermission } = useAuth();
+  if (hasPermission(PERMISSIONS.SUPER_ADMIN_MANAGE)) {
+    return <Navigate to="/super-admin/dashboard" replace />;
+  }
+  return <Dashboard />;
+}
+
 function RequirePermission({ anyOf = [], allOf = [], children }) {
   const { hasPermission, hasAllPermissions } = useAuth();
   const hasAnyRequiredPermission = anyOf.length === 0 || hasPermission(...anyOf);
@@ -132,7 +140,7 @@ export function AppRoutes() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route element={<ProtectedRoute />} >
           <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<RequirePermission anyOf={dashboardPermissions}><Dashboard /></RequirePermission>} />
+            <Route path="/dashboard" element={<RequirePermission anyOf={dashboardPermissions}><DashboardRoute /></RequirePermission>} />
             <Route path="/branch/portal" element={<Navigate to="/dashboard" replace />} />
             <Route path="/plans" element={<RequirePermission anyOf={subscriptionPermissions}><PlanSelection /></RequirePermission>} />
             <Route path="/branches/:id" element={<RequirePermission anyOf={branchViewPermissions}><BranchDetails /></RequirePermission>} />

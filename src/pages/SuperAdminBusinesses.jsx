@@ -196,55 +196,41 @@ export function SuperAdminBusinessDetails({ id }) {
         isEmpty={!business}
         onRetry={businessQuery.refetch}
       >
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-3">
+          {/* Compact Top Summary Metrics */}
+          <div className="grid gap-3 sm:grid-cols-3">
             <SummaryTile
               label="Branches"
               value={business?.counts?.branches || business?.branches?.length || 0}
-              detail="Owner-created shop locations"
+              detail="Shop locations"
               icon={<GitBranch className="h-4 w-4" />}
             />
             <SummaryTile
               label="Staff Accounts"
               value={business?.counts?.staff || 0}
-              detail="Owner, admins, and technicians"
+              detail="Owners & technicians"
               icon={<Users className="h-4 w-4" />}
             />
             <SummaryTile
               label="Repair Devices"
               value={business?.counts?.tickets || 0}
-              detail="Used for Starter 50-device trial"
+              detail="Logged repair devices"
               icon={<Building2 className="h-4 w-4" />}
             />
           </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>{business?.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <Info label="Slug" value={business?.slug} />
-              <Info label="Status" value={<StatusBadge status={business?.status} />} />
-              <Info label="Owner" value={ownerLabel(business?.owner)} />
-              <Info label="Plan" value={planLabel(business?.subscription)} />
-              <Info label="Phone" value={business?.phone || "Not set"} />
-              <Info label="Email" value={business?.email || "Not set"} />
-              <Info label="Website" value={business?.website || "Not set"} />
-              <Info label="GST Number" value={business?.gstNumber || "Not set"} />
-              <Info
-                label="Address"
-                value={[business?.address, business?.city, business?.state, business?.country]
-                  .filter(Boolean)
-                  .join(", ") || "Not set"}
-              />
-            </CardContent>
-          </Card>
-          <OwnerDetails business={business} />
-          <BranchStaffDetails branches={business?.branches || []} />
+
+          {/* Unified Business & Owner Profile Card */}
+          <BusinessProfileCard business={business} />
+
+          {/* Subscription Control Form */}
           <SubscriptionAdminForm
             business={business}
             isSaving={subscriptionMutation.isPending}
             onSave={(payload) => subscriptionMutation.mutate(payload)}
           />
+
+          {/* Branch & Staff Overview */}
+          <BranchStaffDetails branches={business?.branches || []} />
         </div>
       </QueryState>
     </div>
@@ -253,95 +239,132 @@ export function SuperAdminBusinessDetails({ id }) {
 
 function SummaryTile({ label, value, detail, icon }) {
   return (
-    <Card>
-      <CardContent className="flex items-start justify-between">
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardContent className="flex items-center justify-between p-3.5">
         <div>
-          <p className="text-sm text-[var(--muted)]">{label}</p>
-          <p className="mt-2 text-2xl font-bold">{value}</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">{detail}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+          <p className="mt-0.5 text-xl font-black text-slate-900">{value}</p>
+          <p className="text-[10px] text-slate-400">{detail}</p>
         </div>
-        <div className="rounded-md bg-blue-50 p-2 text-[var(--primary)]">{icon}</div>
+        <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[var(--primary)] border border-blue-100/60">
+          {icon}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function OwnerDetails({ business }) {
+function BusinessProfileCard({ business }) {
   const owner = business?.owner;
+  const address = [business?.address, business?.city, business?.state, business?.country]
+    .filter(Boolean)
+    .join(", ");
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Owner Details</CardTitle>
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-100/70 text-[var(--primary)] font-bold">
+            <Building2 className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">{business?.name || "Business"}</h3>
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-700 font-semibold">
+                {business?.slug}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400">Created: {formatDate(business?.createdAt)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={business?.status} />
+        </div>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Info label="Owner name" value={owner?.fullName || "Not assigned"} />
-        <Info label="Owner email" value={owner?.email || "Not set"} />
-        <Info label="Owner mobile" value={owner?.phone || business?.phone || "Not set"} />
-        <Info label="Owner account" value={<StatusBadge status={owner?.isActive ? "ACTIVE" : "INACTIVE"} />} />
+      <CardContent className="p-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <InfoItem label="Owner" value={ownerLabel(owner)} />
+          <InfoItem label="Phone" value={business?.phone || owner?.phone || "Not set"} />
+          <InfoItem label="Email" value={business?.email || owner?.email || "Not set"} />
+          <InfoItem label="Plan" value={planLabel(business?.subscription)} highlight />
+          <InfoItem label="GST Number" value={business?.gstNumber || "Not set"} />
+          <InfoItem label="Website" value={business?.website || "Not set"} />
+          <InfoItem label="Owner Account" value={owner?.isActive ? "Active" : "Inactive"} />
+          <InfoItem label="Address" value={address || "Not set"} className="col-span-2 sm:col-span-1" />
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function InfoItem({ label, value, highlight, className = "" }) {
+  return (
+    <div className={cn("rounded-lg border border-slate-100 bg-slate-50/70 px-2.5 py-1.5 transition hover:bg-slate-50", className)}>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+      <div className={cn("mt-0.5 text-xs font-semibold truncate", highlight ? "text-[var(--primary)] font-bold" : "text-slate-800")}>
+        {value}
+      </div>
+    </div>
   );
 }
 
 function BranchStaffDetails({ branches }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Branch, Admin & Staff Details</CardTitle>
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+        <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-600">
+          Branch, Admin & Staff Details
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-3.5 space-y-3">
         {branches.length ? (
           branches.map((branch) => (
-            <div key={branch.id} className="rounded-md border border-[var(--border)] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{branch.name}</p>
-                    {branch.isMainBranch ? (
-                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                        Main branch
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    {branch.code} · {branch.address || "Address not set"}
-                  </p>
+            <div key={branch.id} className="rounded-lg border border-slate-200/80 p-3 bg-white shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-slate-900">{branch.name}</p>
+                  {branch.isMainBranch ? (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      Main
+                    </span>
+                  ) : null}
+                  <span className="text-[11px] text-slate-400">({branch.code})</span>
                 </div>
                 <StatusBadge status={branch.status} />
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="mt-2 grid grid-cols-4 gap-2">
                 <MiniMetric label="Admins" value={branch.staffCounts?.admins || 0} />
                 <MiniMetric label="Technicians" value={branch.staffCounts?.technicians || 0} />
-                <MiniMetric label="Active staff" value={branch.staffCounts?.active || 0} />
+                <MiniMetric label="Active Staff" value={branch.staffCounts?.active || 0} />
                 <MiniMetric label="Devices" value={branch._count?.tickets || 0} />
               </div>
-              <div className="mt-4 overflow-hidden rounded-md border border-[var(--border)]">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-[var(--muted)]">
+              <div className="mt-2.5 overflow-hidden rounded-lg border border-slate-100">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider">
                     <tr>
-                      <th className="px-3 py-2">Name</th>
-                      <th className="px-3 py-2">Role</th>
-                      <th className="px-3 py-2">Email</th>
-                      <th className="px-3 py-2">Mobile</th>
-                      <th className="px-3 py-2">Status</th>
+                      <th className="px-2.5 py-1.5">Name</th>
+                      <th className="px-2.5 py-1.5">Role</th>
+                      <th className="px-2.5 py-1.5">Email</th>
+                      <th className="px-2.5 py-1.5">Mobile</th>
+                      <th className="px-2.5 py-1.5">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {branch.staff?.length ? (
                       branch.staff.map((member) => (
-                        <tr key={member.id} className="border-t border-[var(--border)]">
-                          <td className="px-3 py-2 font-medium">{member.fullName}</td>
-                          <td className="px-3 py-2">{member.role}</td>
-                          <td className="px-3 py-2">{member.email}</td>
-                          <td className="px-3 py-2">{member.phone || "Not set"}</td>
-                          <td className="px-3 py-2">
+                        <tr key={member.id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                          <td className="px-2.5 py-1.5 font-medium text-slate-900">{member.fullName}</td>
+                          <td className="px-2.5 py-1.5 text-slate-600">{member.role}</td>
+                          <td className="px-2.5 py-1.5 text-slate-500">{member.email}</td>
+                          <td className="px-2.5 py-1.5 text-slate-500">{member.phone || "Not set"}</td>
+                          <td className="px-2.5 py-1.5">
                             <StatusBadge status={member.isActive ? "ACTIVE" : "INACTIVE"} />
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td className="px-3 py-3 text-[var(--muted)]" colSpan={5}>
+                        <td className="px-2.5 py-2 text-slate-400 text-center" colSpan={5}>
                           No staff assigned to this branch.
                         </td>
                       </tr>
@@ -352,7 +375,7 @@ function BranchStaffDetails({ branches }) {
             </div>
           ))
         ) : (
-          <p className="text-sm text-[var(--muted)]">No branches created yet.</p>
+          <p className="text-xs text-slate-400">No branches created yet.</p>
         )}
       </CardContent>
     </Card>
@@ -361,9 +384,9 @@ function BranchStaffDetails({ branches }) {
 
 function MiniMetric({ label, value }) {
   return (
-    <div className="rounded-md border border-[var(--border)] bg-slate-50 p-3">
-      <p className="text-xs font-semibold uppercase text-[var(--muted)]">{label}</p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
+    <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2 py-1 text-center">
+      <p className="text-[9px] font-bold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-bold text-slate-800">{value}</p>
     </div>
   );
 }
@@ -432,140 +455,156 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
 
   const audit = subscription?.metadata?.subscriptionAudit || [];
   const history = subscription?.metadata?.subscriptionHistory || audit;
+  const daysLeft = subscription?.daysRemaining;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Subscription Control</CardTitle>
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+        <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Subscription Control
+        </CardTitle>
+        <span className="text-[11px] font-semibold text-slate-500">
+          Remaining: <span className="font-bold text-slate-800">{daysLeft === null || daysLeft === undefined ? "No expiry" : `${daysLeft} days`}</span>
+        </span>
       </CardHeader>
-      <CardContent>
-        <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
-          <Field label="Plan">
-            <Select value={plan} onChange={(event) => setPlan(event.target.value)}>
-              <option value="STARTER">Starter</option>
-              <option value="GROWTH">Growth</option>
-              <option value="ENTERPRISE">Enterprise</option>
-            </Select>
-          </Field>
-          <Field label="Status">
-            <Select value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="NOT_SELECTED">Not selected</option>
-              <option value="PENDING">Pending</option>
-              <option value="DONE">Done</option>
-              <option value="ACTIVE">Active</option>
-              <option value="TRIALING">{approvalRequested ? "Trialing (approval requested)" : "Trialing"}</option>
-              <option value="EXPIRED">Expired</option>
-              <option value="SUSPENDED">Suspended</option>
-              <option value="CANCELLED">Cancelled</option>
-            </Select>
-          </Field>
-          <Field label="Start date">
-            <Input type="date" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
-          </Field>
-          <Field label="Expiry date">
-            <Input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
-          </Field>
-          <Field label="Add days">
-            <Input
-              min="1"
-              max="3650"
-              type="number"
-              value={addDays}
-              onChange={(event) => setAddDays(event.target.value)}
-              placeholder="Example: 30"
-            />
-          </Field>
-          <Field label="Activation reason">
-            <Select value={activationReason} onChange={(event) => setActivationReason(event.target.value)}>
-              <option value="Manual Payment Verified">Manual Payment Verified</option>
-              <option value="UPI Payment">UPI Payment</option>
-              <option value="Renewal">Renewal</option>
-              <option value="Extension">Extension</option>
-              <option value="Trial Upgrade">Trial Upgrade</option>
-            </Select>
-          </Field>
-          <Field label="Internal note">
-            <Input
-              value={internalNote}
-              onChange={(event) => setInternalNote(event.target.value)}
-              placeholder="Example: Customer paid ₹499, invoice shared"
-            />
-          </Field>
-          <div className="rounded-md border border-[var(--border)] p-4">
-            <p className="text-xs font-semibold uppercase text-[var(--muted)]">Remaining</p>
-            <p className="mt-2 text-sm font-medium">
-              {subscription?.daysRemaining === null || subscription?.daysRemaining === undefined
-                ? "No expiry set"
-                : `${subscription.daysRemaining} days`}
-            </p>
-          </div>
-          {request ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 md:col-span-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+      <CardContent className="p-3.5 space-y-3">
+        {/* Compact Owner Activation Request Banner */}
+        {request ? (
+          <div className="rounded-xl border border-amber-200 bg-[linear-gradient(135deg,#fffdf5,#fef3c7)] p-3 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                 <div>
-                  <p className="text-xs font-semibold uppercase text-amber-800">Owner activation request</p>
-                  <p className="mt-1 text-xs font-medium text-amber-900">
-                    The trial is already running. Approve this request to activate the selected subscription plan.
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase text-amber-950 tracking-wider">
+                      Activation Request
+                    </span>
+                    <span className="font-mono text-[11px] font-bold bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded">
+                      {request.paymentRequestId || request.id || "REQ"}
+                    </span>
+                    <StatusBadge status={request.status || "REQUESTED"} />
+                  </div>
+                  <p className="mt-0.5 text-xs text-amber-800 font-medium">
+                    {request.serviceName} · {request.durationDays} days · <span className="font-bold">{formatCurrency(request.price)}</span>
+                    <span className="text-amber-700/70 ml-2">({formatAuditDate(request.requestedAt)})</span>
                   </p>
                 </div>
-                <StatusBadge status={request.status || "REQUESTED"} />
               </div>
-              <p className="mt-2 text-sm font-bold">{request.paymentRequestId || request.id || "Request ID missing"}</p>
-              <p className="mt-2 text-sm font-medium">
-                {request.serviceName} · {request.durationDays} days · {formatCurrency(request.price)}
-              </p>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                {request.provider || "MANUAL_WHATSAPP"} · {request.status || "REQUESTED"} · requested {formatAuditDate(request.requestedAt)}
-              </p>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSaving}
+                onClick={handleActivate}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-xs shadow-xs"
+              >
+                {isSaving ? "Activating..." : "Approve & Activate Now"}
+              </Button>
             </div>
-          ) : null}
-          <div className="flex flex-wrap gap-2 md:col-span-2">
-            <Button type="button" disabled={isSaving} onClick={handleActivate}>
-              {isSaving ? "Activating..." : approvalRequested ? "Approve Request & Activate" : "Activate Subscription"}
-            </Button>
-            <Button type="submit" disabled={isSaving}>
+          </div>
+        ) : null}
+
+        {/* Compact 4-Column Form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Plan</span>}>
+              <Select className="h-8.5 text-xs py-1" value={plan} onChange={(event) => setPlan(event.target.value)}>
+                <option value="STARTER">Starter</option>
+                <option value="GROWTH">Growth</option>
+                <option value="ENTERPRISE">Enterprise</option>
+              </Select>
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Status</span>}>
+              <Select className="h-8.5 text-xs py-1" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="NOT_SELECTED">Not selected</option>
+                <option value="PENDING">Pending</option>
+                <option value="DONE">Done</option>
+                <option value="ACTIVE">Active</option>
+                <option value="TRIALING">{approvalRequested ? "Trialing (Req)" : "Trialing"}</option>
+                <option value="EXPIRED">Expired</option>
+                <option value="SUSPENDED">Suspended</option>
+                <option value="CANCELLED">Cancelled</option>
+              </Select>
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Activation Reason</span>}>
+              <Select className="h-8.5 text-xs py-1" value={activationReason} onChange={(event) => setActivationReason(event.target.value)}>
+                <option value="Manual Payment Verified">Manual Payment Verified</option>
+                <option value="UPI Payment">UPI Payment</option>
+                <option value="Renewal">Renewal</option>
+                <option value="Extension">Extension</option>
+                <option value="Trial Upgrade">Trial Upgrade</option>
+              </Select>
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Add Days</span>}>
+              <Input
+                className="h-8.5 text-xs py-1"
+                min="1"
+                max="3650"
+                type="number"
+                value={addDays}
+                onChange={(event) => setAddDays(event.target.value)}
+                placeholder="Days (e.g. 30)"
+              />
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Start Date</span>}>
+              <Input className="h-8.5 text-xs py-1" type="date" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Expiry Date</span>}>
+              <Input className="h-8.5 text-xs py-1" type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+            </Field>
+
+            <Field className="sm:col-span-2" label={<span className="text-[11px] font-semibold text-slate-600">Internal Note</span>}>
+              <Input
+                className="h-8.5 text-xs py-1"
+                value={internalNote}
+                onChange={(event) => setInternalNote(event.target.value)}
+                placeholder="Internal verification note (e.g. Paid ₹499 via UPI)"
+              />
+            </Field>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button type="submit" size="sm" variant="secondary" className="h-8.5 text-xs" disabled={isSaving}>
               {isSaving ? "Saving..." : "Save Subscription"}
+            </Button>
+            <Button type="button" size="sm" className="h-8.5 text-xs" disabled={isSaving} onClick={handleActivate}>
+              {isSaving ? "Activating..." : approvalRequested ? "Approve Request & Activate" : "Activate Subscription"}
             </Button>
           </div>
         </form>
-        <div className="mt-5 rounded-md border border-[var(--border)] bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase text-[var(--muted)]">Activation / Renewal Audit</p>
+
+        {/* Compact Audit History */}
+        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            Activation / Renewal Audit ({history.length})
+          </p>
           {history.length ? (
-            <div className="mt-3 space-y-2">
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {history.slice().reverse().map((entry, index) => (
-                <div key={`${entry.at}-${index}`} className="rounded-md border border-[var(--border)] bg-white p-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold">{entry.action || "UPDATED"} · {entry.plan || "No plan"} · {entry.status || "No status"}</p>
-                    <p className="text-xs text-[var(--muted)]">{formatAuditDate(entry.at)}</p>
+                <div key={`${entry.at}-${index}`} className="rounded-md border border-slate-100 bg-white px-2.5 py-1.5 text-xs shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="font-semibold text-slate-800">
+                      {entry.action || "UPDATED"} · <span className="font-bold text-[var(--primary)]">{entry.plan || "No plan"}</span> · {entry.status}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{formatAuditDate(entry.at)}</span>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    Provider: {entry.provider || "MANUAL_WHATSAPP"}
-                    {entry.reason ? ` · Reason: ${entry.reason}` : ""}
-                    {entry.addDays ? ` · Extended ${entry.addDays} days` : ""}
-                    {entry.expiresAt ? ` · Expires ${formatAuditDate(entry.expiresAt)}` : ""}
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {entry.reason ? `Reason: ${entry.reason}` : ""}
+                    {entry.addDays ? ` · Extended ${entry.addDays}d` : ""}
+                    {entry.internalNote ? ` · Note: "${entry.internalNote}"` : ""}
                   </p>
-                  {entry.internalNote ? (
-                    <p className="mt-2 rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
-                      Internal note: {entry.internalNote}
-                    </p>
-                  ) : null}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="mt-2 text-sm text-[var(--muted)]">No activation or renewal audit yet.</p>
+            <p className="text-[11px] text-slate-400">No activation or renewal audit yet.</p>
           )}
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function Info({ label, value }) {
-  return (
-    <div className="rounded-md border border-[var(--border)] p-4">
-      <p className="text-xs font-semibold uppercase text-[var(--muted)]">{label}</p>
-      <div className="mt-2 text-sm font-medium">{value}</div>
-    </div>
   );
 }

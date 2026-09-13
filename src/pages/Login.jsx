@@ -59,28 +59,32 @@ export function Login() {
   }
 
   return (
-    <main
-      className="relative grid min-h-screen place-items-center px-4 py-12 bg-cover bg-center bg-no-repeat antialiased font-sans"
-      style={{ background: "linear-gradient(135deg, #0f172a 0%, #1e3a5f 40%, #0f4c75 70%, #0d9488 100%)" }}
-    >
-      {/* Light Glassy Backdrop Overlay */}
-      <div className="absolute inset-0 bg-slate-50/15 backdrop-blur-[1px]" />
+    <main className="hero-premium relative grid min-h-screen place-items-center px-4 py-12 overflow-hidden antialiased font-sans">
+      {/* Background Ambience & Grid */}
+      <div className="hero-grid-bg absolute inset-0 pointer-events-none" />
+      <div className="hero-glow hero-glow-primary absolute -left-20 top-20 h-80 w-80 rounded-full blur-3xl pointer-events-none" />
+      <div className="hero-glow hero-glow-accent absolute -right-20 bottom-20 h-96 w-96 rounded-full blur-3xl pointer-events-none" />
 
-      <Card className="relative z-10 w-full max-w-md border border-white/50 bg-white/70 backdrop-blur-xl shadow-2xl shadow-slate-200/50 rounded-2xl overflow-hidden p-2">
-        <CardHeader className="text-center pb-2 pt-6 border-b-0">
-          <Link to="/" className="inline-block mx-auto mb-3">
-            <div className="h-11 w-11 rounded-2xl bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] grid place-items-center text-white font-black shadow-md shadow-blue-200/60 hover:scale-105 transition-transform">
-              RF
-            </div>
+      <Card className="relative z-10 w-full max-w-md border border-slate-200/80 bg-white/90 backdrop-blur-xl shadow-2xl shadow-blue-500/10 rounded-2xl overflow-hidden p-3 sm:p-5">
+        <CardHeader className="text-center pb-3 pt-4 border-b-0">
+          <Link to="/" className="inline-flex items-center justify-center gap-2.5 mx-auto mb-3 hover:opacity-90 transition-opacity">
+            <img
+              src="/logo.png?v=3"
+              alt="Kariger logo"
+              className="h-10 w-10 rounded-xl border border-slate-200/80 bg-white object-contain p-1 shadow-md shadow-blue-100"
+            />
+            <span className="text-xl font-black tracking-tight bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] bg-clip-text text-transparent">
+              KARIGER
+            </span>
           </Link>
-          <CardTitle className="text-2xl font-black bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] bg-clip-text text-transparent">
+          <CardTitle className="text-2xl font-black text-slate-900 tracking-tight">
             Welcome Back
           </CardTitle>
           <p className="mt-1 text-xs font-semibold text-slate-500">
-            Access the KARIGER Dashboard
+            Login to your repair shop workspace
           </p>
         </CardHeader>
-        <CardContent className="p-6">
+        <CardContent className="p-4 sm:p-6 pt-0">
           <form className="space-y-4" onSubmit={form.handleSubmit(submit)}>
             <Field
               label={
@@ -94,7 +98,7 @@ export function Login() {
                 type="email"
                 autoComplete="email"
                 placeholder="name@company.com"
-                className="mt-1.5 bg-white/80 border-slate-200/80 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg text-xs h-11"
+                className="mt-1.5 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl text-xs h-11 shadow-sm"
                 {...form.register("email")}
               />
             </Field>
@@ -107,7 +111,7 @@ export function Login() {
                   </span>
                   <Link
                     to="/forgot-password"
-                    className="text-[11px] font-bold text-slate-500 hover:text-slate-800 hover:underline"
+                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
                   >
                     Forgot password?
                   </Link>
@@ -118,19 +122,19 @@ export function Login() {
               <PasswordInput
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className="mt-1.5 bg-white/80 border-slate-200/80 focus:border-blue-500 focus:ring-blue-500/20 rounded-lg text-xs h-11"
+                className="mt-1.5 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl text-xs h-11 shadow-sm"
                 {...form.register("password")}
               />
             </Field>
 
             {form.formState.errors.root ? (
-              <div className="rounded-lg bg-red-50 border border-red-100 p-3 text-xs text-red-600 font-semibold leading-normal">
+              <div className="rounded-xl bg-red-50 border border-red-100 p-3 text-xs text-red-600 font-semibold leading-normal">
                 {form.formState.errors.root.message}
               </div>
             ) : null}
 
             <Button
-              className="w-full h-11 text-xs font-black bg-[linear-gradient(135deg,#1769aa,#0f9f8f)] text-white border-none shadow-lg shadow-blue-200/50 hover:brightness-95 transition-all mt-4 rounded-lg cursor-pointer"
+              className="w-full h-11 text-xs font-black bg-[linear-gradient(135deg,#2563EB,#0EA5E9)] text-white border-none shadow-lg shadow-blue-500/25 hover:brightness-105 transition-all mt-4 rounded-xl cursor-pointer"
               disabled={form.formState.isSubmitting}
             >
               {form.formState.isSubmitting
@@ -138,13 +142,22 @@ export function Login() {
                 : "Login to Portal"}
             </Button>
 
-            <div className="pt-4 border-t border-slate-100/80 mt-6 text-center">
-              <Link
-                to="/"
-                className="text-xs text-slate-500 hover:text-slate-900 transition-colors font-bold inline-flex items-center gap-1.5 py-1 px-3 rounded-md hover:bg-slate-100/60"
-              >
-                <span>←</span> Back to homepage
-              </Link>
+            <div className="pt-4 border-t border-slate-100 mt-6 space-y-3 text-center">
+              <div className="flex items-center justify-between text-xs px-1">
+                <span className="text-slate-500 font-medium">New to Kariger?</span>
+                <Link to="/signup" className="font-bold text-[#2563EB] hover:underline">
+                  Owner Signup →
+                </Link>
+              </div>
+
+              <div>
+                <Link
+                  to="/"
+                  className="text-xs text-slate-500 hover:text-slate-900 transition-colors font-bold inline-flex items-center gap-1.5 py-1 px-3 rounded-lg hover:bg-slate-100/80"
+                >
+                  <span>←</span> Back to homepage
+                </Link>
+              </div>
             </div>
           </form>
         </CardContent>

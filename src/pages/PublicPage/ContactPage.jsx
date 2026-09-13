@@ -123,8 +123,8 @@ export function ContactPage() {
               </Link>
             ) : (
               <Link to="/login">
-                <Button className="h-10 text-xs font-bold px-4 shadow-md shadow-blue-200">
-                  Sign In
+                <Button className="h-10 text-xs font-bold px-6 shadow-md shadow-blue-500/20 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl">
+                  Login
                 </Button>
               </Link>
             )}
@@ -176,6 +176,15 @@ export function ContactPage() {
               >
                 Contact
               </Link>
+              <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col gap-2">
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center h-10 rounded-xl bg-[#2563EB] text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:bg-blue-700"
+                >
+                  Login
+                </Link>
+              </div>
             </nav>
           </div>
         )}

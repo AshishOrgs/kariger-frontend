@@ -601,8 +601,8 @@ export function LandingPage() {
               </Link>
             ) : (
               <Link to="/login">
-                <Button className="h-10 text-xs font-bold px-4 shadow-md shadow-blue-200">
-                  Sign In
+                <Button className="h-10 text-xs font-bold px-6 shadow-md shadow-blue-500/20 bg-[#2563EB] hover:bg-blue-700 text-white rounded-xl">
+                  Login
                 </Button>
               </Link>
             )}
@@ -654,6 +654,15 @@ export function LandingPage() {
               >
                 Contact
               </Link>
+              <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col gap-2">
+                <Link
+                  to="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center justify-center h-10 rounded-xl bg-[#2563EB] text-white text-xs font-bold shadow-md shadow-blue-500/20 hover:bg-blue-700"
+                >
+                  Login
+                </Link>
+              </div>
             </nav>
           </div>
         )}
@@ -685,7 +694,7 @@ export function LandingPage() {
             </p>
 
             <div className="mt-9 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start">
-              <Link to={isAuthenticated ? (user?.business?.subscription?.status === "NOT_SELECTED" ? "/plans" : "/dashboard") : "/login"} className="w-full sm:w-auto">
+              <Link to={isAuthenticated ? (user?.business?.subscription?.status === "NOT_SELECTED" ? "/plans" : "/dashboard") : "/signup"} className="w-full sm:w-auto">
                 <Button className="hero-button h-12 w-full rounded-xl border-[#2563EB] bg-[#2563EB] px-6 text-sm font-extrabold shadow-xl shadow-blue-500/20 hover:-translate-y-0.5 hover:scale-[1.02] hover:brightness-100 sm:w-auto">
                   Start Free Trial
                   <ArrowRight className="h-4 w-4" />
@@ -1342,7 +1351,7 @@ export function LandingPage() {
                   </div>
 
                   <div className="mt-auto pt-8">
-                    <Link to={isAuthenticated ? (user?.business?.subscription?.status === "NOT_SELECTED" ? "/plans" : "/dashboard") : "/login"}>
+                    <Link to={isAuthenticated ? (user?.business?.subscription?.status === "NOT_SELECTED" ? "/plans" : "/dashboard") : "/signup"}>
                       <Button
                         variant={plan.popular ? "primary" : "secondary"}
                         className={`h-12 w-full rounded-2xl text-sm font-black transition-all duration-300 active:translate-y-0 active:scale-[0.99] ${

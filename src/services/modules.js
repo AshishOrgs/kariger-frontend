@@ -1,4 +1,4 @@
-import { del, get, patch, post, put } from "@/services/api";
+import { api, del, get, patch, post, put } from "@/services/api";
 
 export const authApi = {
   signup: (payload) => post("/auth/signup", payload),
@@ -117,3 +117,30 @@ export const superAdminApi = {
   submitContactRequest: (payload) => post("/super-admin/contacts", payload),
   contacts: () => get("/super-admin/contacts"),
 };
+
+export const attendanceApi = {
+  checkIn: (payload) => post("/attendance/check-in", payload),
+  checkOut: (payload) => post("/attendance/check-out", payload),
+  uploadPhoto: (formData) =>
+    api
+      .post("/attendance/upload-photo", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      })
+      .then((res) => res.data?.data || res.data),
+  dailyLogs: (params) => get("/attendance/daily", params),
+  monthlyLogs: (params) => get("/attendance/monthly", params),
+};
+
+export const payrollApi = {
+  calculate: (params) => get("/attendance/payroll/calculate", params),
+  save: (payload) => post("/attendance/payroll/save", payload),
+  markPaid: (id, payload) => post(`/attendance/payroll/${id}/pay`, payload),
+  requestAdvance: (payload) => post("/attendance/advances", payload),
+  listAdvances: (params) => get("/attendance/advances", params),
+  updateAdvanceStatus: (id, payload) => patch(`/attendance/advances/${id}/status`, payload),
+  requestOvertime: (payload) => post("/attendance/overtime", payload),
+  listOvertime: (params) => get("/attendance/overtime", params),
+  updateOvertimeStatus: (id, payload) => patch(`/attendance/overtime/${id}/status`, payload),
+  updateStaffSalary: (staffId, payload) => put(`/attendance/staff/${staffId}/salary`, payload),
+};
+

@@ -6,10 +6,12 @@ export const ALL_BRANCHES = "__all__";
 const BRANCH_STORAGE_KEY = "repair_erp_selected_branch";
 const BRANCH_SCOPED_PREFIXES = [
   "/analytics",
+  "/attendance",
   "/billing",
   "/customers",
   "/inventory",
   "/repair",
+  "/salary",
   "/technicians",
   "/vendors",
 ];

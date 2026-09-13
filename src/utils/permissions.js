@@ -30,6 +30,13 @@ export const PERMISSIONS = Object.freeze({
   STAFF_MANAGE: "staff.manage",
   STAFF_BRANCH_ASSIGN: "staff.branch.assign",
 
+  ATTENDANCE_VIEW: "attendance.view",
+  ATTENDANCE_MARK: "attendance.mark",
+  ATTENDANCE_MANAGE: "attendance.manage",
+
+  SALARY_VIEW: "salary.view",
+  SALARY_MANAGE: "salary.manage",
+
   BRANCH_VIEW: "branch.view",
   BRANCH_MANAGE: "branch.manage",
 

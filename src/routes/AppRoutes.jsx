@@ -41,6 +41,8 @@ const SuperAdminBusinessDetails = lazy(() => import("@/pages/SuperAdminBusinesse
 const SuperAdminDashboard = lazy(() => import("@/pages/SuperAdminDashboard").then((module) => ({ default: module.SuperAdminDashboard })));
 const SuperAdminContacts = lazy(() => import("@/pages/SuperAdminContacts").then((module) => ({ default: module.SuperAdminContacts })));
 const Vendors = lazy(() => import("@/pages/Vendors").then((module) => ({ default: module.Vendors })));
+const AttendancePage = lazy(() => import("@/pages/AttendancePage").then((module) => ({ default: module.AttendancePage })));
+const PayrollPage = lazy(() => import("@/pages/PayrollPage").then((module) => ({ default: module.PayrollPage })));
 const NotFoundPage = lazy(() => import("@/pages/ErrorPages").then((module) => ({ default: module.NotFoundPage })));
 const UnauthorizedPage = lazy(() => import("@/pages/ErrorPages").then((module) => ({ default: module.UnauthorizedPage })));
 
@@ -104,6 +106,17 @@ const branchViewPermissions = [PERMISSIONS.BRANCH_VIEW, PERMISSIONS.BRANCH_MANAG
 const branchManagePermissions = [PERMISSIONS.BRANCH_MANAGE];
 const businessPermissions = [PERMISSIONS.BUSINESS_MANAGE];
 const staffPermissions = [PERMISSIONS.STAFF_VIEW, PERMISSIONS.STAFF_MANAGE];
+const attendancePermissions = [
+  PERMISSIONS.SUPER_ADMIN_MANAGE,
+  PERMISSIONS.ATTENDANCE_VIEW,
+  PERMISSIONS.ATTENDANCE_MARK,
+  PERMISSIONS.ATTENDANCE_MANAGE,
+];
+const payrollPermissions = [
+  PERMISSIONS.SUPER_ADMIN_MANAGE,
+  PERMISSIONS.SALARY_VIEW,
+  PERMISSIONS.SALARY_MANAGE,
+];
 const repairViewPermissions = [PERMISSIONS.REPAIR_JOBS_VIEW];
 const repairIntakePermissions = [PERMISSIONS.REPAIR_INTAKE];
 const estimatePermissions = [PERMISSIONS.REPAIR_ESTIMATE, PERMISSIONS.ESTIMATE_CREATE];
@@ -154,6 +167,8 @@ export function AppRoutes() {
             <Route path="/repair/estimates/:id" element={<RequirePermission anyOf={estimatePermissions}><EstimateDetailsRoute /></RequirePermission>} />
             <Route path="/repair/:id" element={<RequirePermission anyOf={repairViewPermissions}><RepairDetailsRoute /></RequirePermission>} />
             <Route path="/staff" element={<RequirePermission anyOf={staffPermissions}><StaffManagement /></RequirePermission>} />
+            <Route path="/attendance" element={<RequirePermission anyOf={attendancePermissions}><AttendancePage /></RequirePermission>} />
+            <Route path="/payroll" element={<RequirePermission anyOf={payrollPermissions}><PayrollPage /></RequirePermission>} />
             <Route path="/subscription" element={<RequirePermission anyOf={subscriptionPermissions}><Subscription /></RequirePermission>} />
             <Route path="/super-admin/dashboard" element={<RequirePermission anyOf={superAdminPermissions}><SuperAdminDashboard /></RequirePermission>} />
             <Route path="/super-admin/businesses" element={<RequirePermission anyOf={superAdminPermissions}><SuperAdminBusinesses /></RequirePermission>} />

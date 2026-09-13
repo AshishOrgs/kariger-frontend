@@ -4,25 +4,36 @@
 // Ensures location is NEVER blank even if browser permission or GPS sensor is restricted
 // ==============================================================================
 
+export const DEFAULT_SHOP_LOCATION = {
+  lat: 21.278,
+  lng: 81.679,
+  accuracy: 10,
+  source: "SHOP_BRANCH",
+  city: "Raipur",
+  region: "Chhattisgarh",
+  address: "Ekta Chowk, Saddu, Raipur, Chhattisgarh",
+};
+
 /**
  * Resolves geolocation with multi-tier fallback:
  * Tier 1: Browser GPS (high accuracy)
  * Tier 2: Browser Location (standard accuracy / Wi-Fi)
- * Tier 3: Secure IP-based Geolocation (Indore/Bhopal/Delhi/etc.)
+ * Tier 3: Secure IP-based Geolocation (ISP Gateway)
  */
 export async function resolveSmartLocation() {
   // Tier 1 & 2: Browser Geolocation API
   if (typeof window !== "undefined" && "geolocation" in navigator) {
     try {
-      const position = await getBrowserPosition({ enableHighAccuracy: true, timeout: 4000 });
+      const position = await getBrowserPosition({ enableHighAccuracy: true, timeout: 5000 });
+      const geo = await reverseGeocode(position.coords.latitude, position.coords.longitude);
       return {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
         accuracy: position.coords.accuracy,
         source: "GPS",
-        city: null,
-        region: null,
-        address: `Lat: ${position.coords.latitude.toFixed(4)}, Lng: ${position.coords.longitude.toFixed(4)} (GPS)`,
+        city: geo.city,
+        region: geo.region,
+        address: geo.address || `Lat: ${position.coords.latitude.toFixed(4)}, Lng: ${position.coords.longitude.toFixed(4)} (GPS)`,
         permissionDenied: false,
         error: null,
       };
@@ -33,14 +44,15 @@ export async function resolveSmartLocation() {
       if (err1.code !== 1) {
         try {
           const position = await getBrowserPosition({ enableHighAccuracy: false, timeout: 6000, maximumAge: 60000 });
+          const geo = await reverseGeocode(position.coords.latitude, position.coords.longitude);
           return {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             accuracy: position.coords.accuracy,
             source: "WIFI_NETWORK",
-            city: null,
-            region: null,
-            address: `Lat: ${position.coords.latitude.toFixed(4)}, Lng: ${position.coords.longitude.toFixed(4)} (Network)`,
+            city: geo.city,
+            region: geo.region,
+            address: geo.address || `Lat: ${position.coords.latitude.toFixed(4)}, Lng: ${position.coords.longitude.toFixed(4)} (Network)`,
             permissionDenied: false,
             error: null,
           };
@@ -50,14 +62,14 @@ export async function resolveSmartLocation() {
       }
 
       // Tier 3: IP Geolocation Fallback
-      const isPermissionDenied = err1.code === 1;
+      const isPermissionDenied = err1.code === 1 || err1.code === 2;
       const ipLocation = await fetchIpFallbackLocation();
       if (ipLocation) {
         return {
           ...ipLocation,
           permissionDenied: isPermissionDenied,
           error: isPermissionDenied
-            ? "Browser location permission was blocked. Using network IP location."
+            ? "Browser location permission was blocked. Showing ISP network location."
             : null,
         };
       }
@@ -102,10 +114,35 @@ function getBrowserPosition(options) {
 }
 
 /**
+ * Reverse geocode latitude and longitude to city and state
+ */
+export async function reverseGeocode(lat, lng) {
+  try {
+    const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lng}`, {
+      headers: { Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const city = data.city || data.locality || "";
+      const region = data.principalSubdivision || "";
+      const localityInfo = [city, region].filter(Boolean).join(", ");
+      return {
+        city,
+        region,
+        address: localityInfo || null,
+      };
+    }
+  } catch (err) {
+    console.warn("Reverse geocoding error:", err.message);
+  }
+  return { city: null, region: null, address: null };
+}
+
+/**
  * IP Geolocation service using free, CORS-enabled endpoints
  */
 async function fetchIpFallbackLocation() {
-  // Provider 1: BigDataCloud Reverse Geocode Client (Fast, precise for India & worldwide)
+  // Provider 1: BigDataCloud Reverse Geocode Client
   try {
     const res = await fetch("https://api.bigdatacloud.net/data/reverse-geocode-client", {
       headers: { Accept: "application/json" },

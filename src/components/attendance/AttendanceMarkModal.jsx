@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Camera, CheckCircle2, Crosshair, Loader2, MapPin, RefreshCw, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { captureAndWatermarkFrame } from "@/utils/watermark";
-import { resolveSmartLocation } from "@/utils/geolocation";
+import { resolveSmartLocation, DEFAULT_SHOP_LOCATION } from "@/utils/geolocation";
 import { attendanceApi } from "@/services/modules";
 import { useToast } from "@/contexts/ToastContext";
 import { cn } from "@/utils/cn";
@@ -24,6 +24,15 @@ export function AttendanceMarkModal({ isOpen, onClose, onSuccess, staffList = []
   // Pick target staff
   const targetStaff = staffList.find((s) => s.id === selectedStaffId) || currentStaff;
   const staffDisplayName = targetStaff?.fullName || targetStaff?.name || "Staff Member";
+
+  const handleUseShopLocation = () => {
+    setCoords(DEFAULT_SHOP_LOCATION);
+    setLocationData({
+      ...DEFAULT_SHOP_LOCATION,
+      permissionDenied: false,
+      error: null,
+    });
+  };
 
   const fetchLocation = async () => {
     setGpsLoading(true);
@@ -289,10 +298,12 @@ export function AttendanceMarkModal({ isOpen, onClose, onSuccess, staffList = []
                   ? "Detecting location..."
                   : coords
                   ? coords.source === "GPS"
-                    ? `GPS Active (Lat ${coords.lat.toFixed(4)}, Lng ${coords.lng.toFixed(4)})`
+                    ? `GPS Active (${coords.city ? `${coords.city}, ` : ""}${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`
                     : coords.source === "WIFI_NETWORK"
-                    ? `Wi-Fi Location (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`
-                    : `Network Location (${coords.city ? `${coords.city}, ` : ""}${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`
+                    ? `Wi-Fi Location (${coords.city ? `${coords.city}, ` : ""}${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`
+                    : coords.source === "SHOP_BRANCH"
+                    ? `Shop Location (Raipur - Ekta Chowk)`
+                    : `Network ISP Location (${coords.city || "Indore"}, ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`
                   : "Location sensor not available"}
               </span>
             </div>
@@ -313,11 +324,27 @@ export function AttendanceMarkModal({ isOpen, onClose, onSuccess, staffList = []
             </div>
           </div>
 
-          {locationData?.permissionDenied && (
-            <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
-              <div className="leading-snug">
-                <strong>Browser location access is blocked.</strong> Network IP location was used automatically. For high-precision GPS: click the <strong>location icon (📍 or 🔒)</strong> in your Chrome address bar, select <strong>"Always allow"</strong>, then click <strong>"Retry GPS"</strong>.
+          {/* If using ISP gateway fallback (Indore) or permission blocked, show guidance and shop button */}
+          {(coords?.source === "IP_NETWORK" || locationData?.permissionDenied || coords?.city === "Indore") && (
+            <div className="flex flex-col gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 p-2.5 text-[11.5px] text-amber-900 dark:text-amber-200 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+                <div className="leading-snug">
+                  <strong>Showing Indore (ISP Gateway)</strong>: Your internet provider routes data through Indore because Chrome location is currently blocked for this site.
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-800/60">
+                <button
+                  type="button"
+                  onClick={handleUseShopLocation}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 text-white font-semibold text-xs shadow hover:bg-emerald-700 transition-colors"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  Set Shop Location (Raipur, Ekta Chowk)
+                </button>
+                <span className="text-[10.5px] text-amber-800 dark:text-amber-300">
+                  Or click 📍/🔒 in Chrome URL bar &gt; Allow &gt; "Retry GPS"
+                </span>
               </div>
             </div>
           )}

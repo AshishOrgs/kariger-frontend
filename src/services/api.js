@@ -52,6 +52,10 @@ api.interceptors.request.use((config) => {
   const token = getAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
 
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  }
+
   const branchId = getSelectedBranchId();
   if (branchId && branchId !== ALL_BRANCHES && isBranchScopedUrl(config.url || "")) {
     config.params = { ...(config.params || {}), branchId };

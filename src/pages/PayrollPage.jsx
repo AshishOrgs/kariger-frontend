@@ -325,8 +325,10 @@ export function PayrollPage() {
                     <Th>Staff Member</Th>
                     <Th>Branch</Th>
                     <Th>Salary Type</Th>
-                    <Th>Base Rate</Th>
-                    <Th>Present / 26</Th>
+                    <Th>Base Salary</Th>
+                    <Th className="text-center">Present (Full)</Th>
+                    <Th className="text-center">Half Days</Th>
+                    <Th className="text-center">Payable Days</Th>
                     <Th>Gross Pay</Th>
                     <Th>Overtime</Th>
                     <Th>Advance EMI</Th>
@@ -355,10 +357,25 @@ export function PayrollPage() {
                         </span>
                       </Td>
                       <Td className="font-mono text-xs font-medium">₹{r.baseSalary?.toLocaleString("en-IN")}</Td>
-                      <Td>
-                        <span className="inline-flex items-center font-bold text-xs text-[var(--foreground)] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
-                          {r.presentDays} / 26
+                      <Td className="text-center">
+                        <span className="font-bold text-xs text-emerald-600 dark:text-emerald-400">
+                          {r.fullDays ?? r.presentDays}
                         </span>
+                      </Td>
+                      <Td className="text-center">
+                        <span className={cn("font-bold text-xs", (r.halfDays || 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-400")}>
+                          {r.halfDays ?? 0}
+                        </span>
+                      </Td>
+                      <Td className="text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="inline-flex items-center font-black text-xs text-[var(--foreground)] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                            {r.presentDays} / {r.totalDays || r.workingDays || 30}
+                          </span>
+                          <span className="text-[10px] text-[var(--muted)] mt-0.5">
+                            ({r.fullDays ?? r.presentDays}F + {r.halfDays ?? 0}H)
+                          </span>
+                        </div>
                       </Td>
                       <Td className="font-mono text-xs font-semibold text-[var(--foreground)]">
                         ₹{r.grossPay?.toLocaleString("en-IN")}
@@ -661,7 +678,7 @@ export function PayrollPage() {
                   <Th>Role</Th>
                   <Th>Department</Th>
                   <Th>Salary Type</Th>
-                  <Th>Base Rate (₹)</Th>
+                  <Th>Base Salary (₹)</Th>
                   <Th className="text-right">Actions</Th>
                 </tr>
               </thead>
@@ -734,7 +751,14 @@ export function PayrollPage() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--muted)]">Days Present:</span>
-                <span className="font-bold text-emerald-600">{payslipRecord.presentDays} of 26 days</span>
+                <span className="font-bold text-emerald-600">
+                  {payslipRecord.presentDays} of {payslipRecord.totalDays || payslipRecord.workingDays || 30} days
+                  {payslipRecord.halfDays !== undefined && (
+                    <span className="text-xs font-normal text-[var(--muted)] ml-1">
+                      ({payslipRecord.fullDays ?? payslipRecord.presentDays} Full, {payslipRecord.halfDays} Half)
+                    </span>
+                  )}
+                </span>
               </div>
             </div>
 
@@ -811,7 +835,7 @@ export function PayrollPage() {
                   defaultValue={salaryEditStaff.salaryType || "MONTHLY"}
                   className="w-full rounded-lg border border-[var(--border)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)]"
                 >
-                  <option value="MONTHLY">Monthly (26 Standard Days)</option>
+                  <option value="MONTHLY">Monthly (Calendar Month Days)</option>
                   <option value="DAILY">Daily Wage</option>
                   <option value="HOURLY">Hourly Wage</option>
                 </select>
@@ -819,7 +843,7 @@ export function PayrollPage() {
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-[var(--muted)] mb-1">
-                  Base Amount (₹)
+                  Base Salary (₹)
                 </label>
                 <input
                   type="number"

@@ -144,6 +144,9 @@ export function ToastProvider({ children }) {
       success: (message, title = "Success") => pushToast({ type: "success", title, message }),
       error: (message, title = "Error") => pushToast({ type: "error", title, message }),
       info: (message, title = "Info") => pushToast({ type: "info", title, message }),
+      showSuccess: (message, title = "Success") => pushToast({ type: "success", title, message }),
+      showError: (message, title = "Error") => pushToast({ type: "error", title, message }),
+      showInfo: (message, title = "Info") => pushToast({ type: "info", title, message }),
       errorFromApi,
       showRememberedLimit,
       setLimitScope,
@@ -155,7 +158,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
-      <div className="fixed right-4 top-4 z-50 flex w-[min(420px,calc(100vw-2rem))] flex-col gap-3">
+      <div className="fixed right-4 top-4 z-[9999] flex w-[min(420px,calc(100vw-2rem))] flex-col gap-3">
         {toasts.map((toast) => (
           <div
             key={toast.id}

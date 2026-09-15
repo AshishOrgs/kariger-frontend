@@ -25,7 +25,6 @@ export const navigation = [
     path: "/dashboard",
     icon: Gauge,
     permissions: [
-      PERMISSIONS.SUPER_ADMIN_MANAGE,
       PERMISSIONS.REPAIR_INTAKE,
       PERMISSIONS.REPAIR_JOBS_VIEW,
       PERMISSIONS.REPAIR_WORK,

@@ -1,7 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { Building2, GitBranch, Users } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import {
+  AlertCircle,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Clock,
+  Filter,
+  GitBranch,
+  Phone,
+  Search,
+  ShieldCheck,
+  TrendingUp,
+  Users,
+  Zap,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DataTable } from "@/components/ui/DataTable";
@@ -30,15 +44,30 @@ function hasApprovalRequest(subscription) {
   return subscription?.metadata?.paymentRequest?.status === "REQUESTED";
 }
 
+const PLAN_TABS = [
+  { key: "ALL", label: "All Tenants" },
+  { key: "STARTER", label: "Starter" },
+  { key: "GROWTH", label: "Growth" },
+  { key: "ENTERPRISE", label: "Enterprise" },
+  { key: "TRIAL", label: "Free Trial" },
+  { key: "PENDING", label: "Approvals Pending" },
+];
+
 export function SuperAdminBusinesses() {
   const toast = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const activePlanTab = searchParams.get("plan") || "ALL";
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
   const businessesQuery = useQuery({
     queryKey: ["super-admin-businesses"],
     queryFn: () => superAdminApi.businesses(),
   });
 
-  const businesses = businessesQuery.data?.data?.businesses || [];
+  const allBusinesses = businessesQuery.data?.data?.businesses || [];
 
   const statusMutation = useMutation({
     mutationFn: ({ id, action }) =>
@@ -54,84 +83,322 @@ export function SuperAdminBusinesses() {
     },
   });
 
-  return (
-    <div>
-      <PageHeader
-        title="Businesses"
-        description="SaaS tenant list for super admin operations."
-      />
+  // Calculate tab counts
+  const tabCounts = useMemo(() => {
+    const counts = { ALL: allBusinesses.length, STARTER: 0, GROWTH: 0, ENTERPRISE: 0, TRIAL: 0, PENDING: 0 };
+    for (const b of allBusinesses) {
+      const plan = b.subscription?.plan;
+      if (plan === "STARTER") counts.STARTER += 1;
+      else if (plan === "GROWTH") counts.GROWTH += 1;
+      else if (plan === "ENTERPRISE") counts.ENTERPRISE += 1;
+      else counts.TRIAL += 1;
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Business Tenants</CardTitle>
-        </CardHeader>
+      if (hasApprovalRequest(b.subscription) || b.subscription?.status === "PENDING") {
+        counts.PENDING += 1;
+      }
+    }
+    return counts;
+  }, [allBusinesses]);
+
+  // Filter businesses
+  const filteredBusinesses = useMemo(() => {
+    return allBusinesses.filter((b) => {
+      // 1. Plan Tab filter
+      if (activePlanTab === "PENDING") {
+        const isPending = hasApprovalRequest(b.subscription) || b.subscription?.status === "PENDING";
+        if (!isPending) return false;
+      } else if (activePlanTab === "TRIAL") {
+        const isStandard = ["STARTER", "GROWTH", "ENTERPRISE"].includes(b.subscription?.plan);
+        if (isStandard) return false;
+      } else if (activePlanTab !== "ALL") {
+        if (b.subscription?.plan !== activePlanTab) return false;
+      }
+
+      // 2. Status filter
+      if (statusFilter !== "ALL" && b.status !== statusFilter) {
+        return false;
+      }
+
+      // 3. Search query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim();
+        const name = (b.name || "").toLowerCase();
+        const slug = (b.slug || "").toLowerCase();
+        const ownerName = (b.owner?.fullName || "").toLowerCase();
+        const ownerEmail = (b.owner?.email || "").toLowerCase();
+        const ownerPhone = (b.owner?.phone || "").toLowerCase();
+        const reqId = (b.subscription?.metadata?.paymentRequest?.id || "").toLowerCase();
+        if (
+          !name.includes(query) &&
+          !slug.includes(query) &&
+          !ownerName.includes(query) &&
+          !ownerEmail.includes(query) &&
+          !ownerPhone.includes(query) &&
+          !reqId.includes(query)
+        ) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [allBusinesses, activePlanTab, statusFilter, searchQuery]);
+
+  const totalUsersInFiltered = useMemo(() => {
+    return filteredBusinesses.reduce((acc, b) => acc + (b.counts?.staff || 0), 0);
+  }, [filteredBusinesses]);
+
+  const totalBranchesInFiltered = useMemo(() => {
+    return filteredBusinesses.reduce((acc, b) => acc + (b.counts?.branches || 0), 0);
+  }, [filteredBusinesses]);
+
+  const handleSelectTab = (tabKey) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (tabKey === "ALL") {
+      nextParams.delete("plan");
+    } else {
+      nextParams.set("plan", tabKey);
+    }
+    setSearchParams(nextParams);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <PageHeader
+          title="Tenant Businesses"
+          description="SaaS tenant control directory with plan filtering, platform user volume, and subscription management."
+        />
+        <div className="flex items-center gap-2">
+          <Link to="/super-admin/dashboard">
+            <Button variant="secondary" size="sm" className="gap-1.5 text-xs font-semibold">
+              <Zap className="h-3.5 w-3.5" />
+              Platform Dashboard
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Plan-Wise Filter Tabs */}
+      <div className="flex flex-wrap items-center gap-1 rounded-xl bg-slate-100/90 p-1 border border-slate-200/70">
+        {PLAN_TABS.map((tab) => {
+          const isActive = activePlanTab === tab.key;
+          const count = tabCounts[tab.key] || 0;
+          const isPendingTab = tab.key === "PENDING";
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => handleSelectTab(tab.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all",
+                isActive
+                  ? "bg-white text-slate-900 shadow-xs font-bold"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/60"
+              )}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.2 text-[10px] font-bold",
+                  isPendingTab && count > 0
+                    ? "bg-amber-100 text-amber-900 border border-amber-300 animate-pulse"
+                    : isActive
+                    ? "bg-slate-100 text-slate-800"
+                    : "bg-slate-200/70 text-slate-500"
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <Card className="border-slate-200/80 shadow-sm overflow-hidden">
+        {/* Compact Search and Secondary Filter Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-4 py-2.5 bg-slate-50/50">
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by business, slug, owner, phone..."
+              className="h-8 pl-8 text-xs bg-white rounded-lg"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Filter className="h-3.5 w-3.5 text-slate-400" />
+              <span>Status:</span>
+              <Select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="h-8 text-xs py-0.5 w-28 bg-white"
+              >
+                <option value="ALL">All Status</option>
+                <option value="ACTIVE">Active</option>
+                <option value="SUSPENDED">Suspended</option>
+              </Select>
+            </div>
+
+            <div className="hidden md:flex items-center gap-2 text-[11px] text-slate-500 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span><strong>{filteredBusinesses.length}</strong> shops</span>
+              <span>·</span>
+              <span><strong>{totalUsersInFiltered}</strong> users</span>
+              <span>·</span>
+              <span><strong>{totalBranchesInFiltered}</strong> branches</span>
+            </div>
+          </div>
+        </div>
+
         <DataTable
-          rows={businesses}
+          rows={filteredBusinesses}
           isLoading={businessesQuery.isLoading}
           error={businessesQuery.error}
           onRetry={businessesQuery.refetch}
-          searchable
-          emptyTitle="No businesses found"
+          searchable={false}
+          emptyTitle="No businesses match the selected filters"
           columns={[
             {
               key: "name",
-              header: "Business",
+              header: "Business Tenant",
               render: (business) => (
-                <div>
-                  <p className="font-semibold">{business.name}</p>
-                  <p className="text-xs text-[var(--muted)]">{business.slug}</p>
+                <div className="max-w-[200px]">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-xs text-slate-900 truncate" title={business.name}>
+                      {business.name}
+                    </p>
+                    <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold shrink-0">
+                      {business.slug?.length > 14 ? `${business.slug.slice(0, 14)}...` : business.slug}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-0.5 truncate">
+                    {formatDate(business.createdAt)}
+                  </p>
                 </div>
               ),
             },
             {
               key: "owner",
-              header: "Owner",
-              render: (business) => ownerLabel(business.owner),
+              header: "Owner & Contact",
+              render: (business) => {
+                const owner = business.owner;
+                return (
+                  <div className="max-w-[190px]">
+                    <p className="font-semibold text-xs text-slate-800 truncate" title={owner?.fullName}>
+                      {owner?.fullName || "Not assigned"}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                      {owner?.phone ? (
+                        <a
+                          href={`tel:${owner.phone}`}
+                          className="inline-flex items-center gap-0.5 font-mono text-blue-600 hover:underline shrink-0"
+                        >
+                          <Phone className="h-2.5 w-2.5" />
+                          {owner.phone}
+                        </a>
+                      ) : null}
+                      {owner?.email ? (
+                        <span className="truncate text-slate-400" title={owner.email}>
+                          {owner.email}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              },
             },
             {
               key: "plan",
-              header: "Plan",
-              render: (business) => planLabel(business.subscription),
+              header: "Plan & Tier",
+              render: (business) => {
+                const sub = business.subscription;
+                const isPending = hasApprovalRequest(sub);
+                const planName = sub?.plan || "TRIAL";
+                return (
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-bold text-[10px] uppercase tracking-wider text-slate-800">
+                        {planName}
+                      </span>
+                      <StatusBadge status={isPending ? "APPROVAL_REQUESTED" : sub?.status || "NOT_SELECTED"} />
+                    </div>
+                    {sub?.daysRemaining !== undefined && sub?.daysRemaining !== null ? (
+                      <p className="text-[10px] text-slate-400">
+                        {sub.daysRemaining > 0 ? `${sub.daysRemaining}d left` : "Expired"}
+                      </p>
+                    ) : null}
+                  </div>
+                );
+              },
+            },
+            {
+              key: "staff",
+              header: "Users",
+              render: (business) => (
+                <div className="flex items-center gap-1">
+                  <Users className="h-3 w-3 text-slate-400" />
+                  <span className="font-bold text-xs text-slate-800">{business.counts?.staff || 0}</span>
+                </div>
+              ),
             },
             {
               key: "branches",
               header: "Branches",
-              render: (business) => business.counts?.branches || 0,
-            },
-            {
-              key: "staff",
-              header: "Staff",
-              render: (business) => business.counts?.staff || 0,
+              render: (business) => (
+                <div className="flex items-center gap-1">
+                  <GitBranch className="h-3 w-3 text-slate-400" />
+                  <span className="text-xs font-semibold text-slate-700">{business.counts?.branches || 0}</span>
+                </div>
+              ),
             },
             {
               key: "devices",
               header: "Devices",
-              render: (business) => business.counts?.tickets || 0,
+              render: (business) => (
+                <span className="text-xs text-slate-600">{business.counts?.tickets || 0} tickets</span>
+              ),
             },
             {
               key: "status",
-              header: "Status",
+              header: "State",
               render: (business) => <StatusBadge status={business.status} />,
             },
             {
-              key: "createdAt",
-              header: "Created",
-              render: (business) => formatDate(business.createdAt),
-            },
-            {
               key: "actions",
-              header: "Action",
+              header: "Management",
               render: (business) => {
                 const isSuspended = business.status === "SUSPENDED";
+                const isPending = hasApprovalRequest(business.subscription);
                 return (
-                  <div className="flex flex-wrap gap-2">
-                    <ActionLink to={`/super-admin/businesses/${business.id}`}>
-                      Owner Details
-                    </ActionLink>
+                  <div className="flex items-center gap-1.5 whitespace-nowrap">
+                    {isPending ? (
+                      <Link to={`/super-admin/businesses/${business.id}`}>
+                        <Button
+                          size="sm"
+                          className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-2xs whitespace-nowrap"
+                        >
+                          Approve
+                        </Button>
+                      </Link>
+                    ) : null}
+                    <Link to={`/super-admin/businesses/${business.id}`}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 px-2.5 text-[11px] font-semibold whitespace-nowrap"
+                      >
+                        Manage
+                      </Button>
+                    </Link>
                     <Button
                       size="sm"
-                      variant={isSuspended ? "primary" : "secondary"}
+                      variant={isSuspended ? "primary" : "ghost"}
                       disabled={statusMutation.isPending}
+                      className="h-7 px-2 text-[11px] text-slate-500 hover:text-rose-600 font-medium whitespace-nowrap"
                       onClick={() =>
                         statusMutation.mutate({
                           id: business.id,
@@ -157,7 +424,7 @@ function ActionLink({ to, children }) {
     <Link
       to={to}
       className={cn(
-        "focus-ring inline-flex h-9 items-center justify-center rounded-md border border-[var(--border)] bg-white px-3 text-sm font-medium text-[var(--foreground)] transition hover:bg-slate-50"
+        "focus-ring inline-flex h-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white px-3 text-xs font-semibold text-[var(--foreground)] transition hover:bg-slate-50"
       )}
     >
       {children}
@@ -196,55 +463,41 @@ export function SuperAdminBusinessDetails({ id }) {
         isEmpty={!business}
         onRetry={businessQuery.refetch}
       >
-        <div className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-3">
+        <div className="space-y-3">
+          {/* Compact Top Summary Metrics */}
+          <div className="grid gap-3 sm:grid-cols-3">
             <SummaryTile
               label="Branches"
               value={business?.counts?.branches || business?.branches?.length || 0}
-              detail="Owner-created shop locations"
+              detail="Shop locations"
               icon={<GitBranch className="h-4 w-4" />}
             />
             <SummaryTile
               label="Staff Accounts"
               value={business?.counts?.staff || 0}
-              detail="Owner, admins, and technicians"
+              detail="Owners & technicians"
               icon={<Users className="h-4 w-4" />}
             />
             <SummaryTile
               label="Repair Devices"
               value={business?.counts?.tickets || 0}
-              detail="Used for Starter 50-device trial"
+              detail="Logged repair devices"
               icon={<Building2 className="h-4 w-4" />}
             />
           </div>
-          <Card>
-            <CardHeader>
-              <CardTitle>{business?.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <Info label="Slug" value={business?.slug} />
-              <Info label="Status" value={<StatusBadge status={business?.status} />} />
-              <Info label="Owner" value={ownerLabel(business?.owner)} />
-              <Info label="Plan" value={planLabel(business?.subscription)} />
-              <Info label="Phone" value={business?.phone || "Not set"} />
-              <Info label="Email" value={business?.email || "Not set"} />
-              <Info label="Website" value={business?.website || "Not set"} />
-              <Info label="GST Number" value={business?.gstNumber || "Not set"} />
-              <Info
-                label="Address"
-                value={[business?.address, business?.city, business?.state, business?.country]
-                  .filter(Boolean)
-                  .join(", ") || "Not set"}
-              />
-            </CardContent>
-          </Card>
-          <OwnerDetails business={business} />
-          <BranchStaffDetails branches={business?.branches || []} />
+
+          {/* Unified Business & Owner Profile Card */}
+          <BusinessProfileCard business={business} />
+
+          {/* Subscription Control Form */}
           <SubscriptionAdminForm
             business={business}
             isSaving={subscriptionMutation.isPending}
             onSave={(payload) => subscriptionMutation.mutate(payload)}
           />
+
+          {/* Branch & Staff Overview */}
+          <BranchStaffDetails branches={business?.branches || []} />
         </div>
       </QueryState>
     </div>
@@ -253,95 +506,132 @@ export function SuperAdminBusinessDetails({ id }) {
 
 function SummaryTile({ label, value, detail, icon }) {
   return (
-    <Card>
-      <CardContent className="flex items-start justify-between">
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardContent className="flex items-center justify-between p-3.5">
         <div>
-          <p className="text-sm text-[var(--muted)]">{label}</p>
-          <p className="mt-2 text-2xl font-bold">{value}</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">{detail}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{label}</p>
+          <p className="mt-0.5 text-xl font-black text-slate-900">{value}</p>
+          <p className="text-[10px] text-slate-400">{detail}</p>
         </div>
-        <div className="rounded-md bg-blue-50 p-2 text-[var(--primary)]">{icon}</div>
+        <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-50 text-[var(--primary)] border border-blue-100/60">
+          {icon}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function OwnerDetails({ business }) {
+function BusinessProfileCard({ business }) {
   const owner = business?.owner;
+  const address = [business?.address, business?.city, business?.state, business?.country]
+    .filter(Boolean)
+    .join(", ");
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Owner Details</CardTitle>
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-blue-100/70 text-[var(--primary)] font-bold">
+            <Building2 className="h-4 w-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-slate-900">{business?.name || "Business"}</h3>
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-200/70 text-slate-700 font-semibold">
+                {business?.slug}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400">Created: {formatDate(business?.createdAt)}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={business?.status} />
+        </div>
       </CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Info label="Owner name" value={owner?.fullName || "Not assigned"} />
-        <Info label="Owner email" value={owner?.email || "Not set"} />
-        <Info label="Owner mobile" value={owner?.phone || business?.phone || "Not set"} />
-        <Info label="Owner account" value={<StatusBadge status={owner?.isActive ? "ACTIVE" : "INACTIVE"} />} />
+      <CardContent className="p-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <InfoItem label="Owner" value={ownerLabel(owner)} />
+          <InfoItem label="Phone" value={business?.phone || owner?.phone || "Not set"} />
+          <InfoItem label="Email" value={business?.email || owner?.email || "Not set"} />
+          <InfoItem label="Plan" value={planLabel(business?.subscription)} highlight />
+          <InfoItem label="GST Number" value={business?.gstNumber || "Not set"} />
+          <InfoItem label="Website" value={business?.website || "Not set"} />
+          <InfoItem label="Owner Account" value={owner?.isActive ? "Active" : "Inactive"} />
+          <InfoItem label="Address" value={address || "Not set"} className="col-span-2 sm:col-span-1" />
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+function InfoItem({ label, value, highlight, className = "" }) {
+  return (
+    <div className={cn("rounded-lg border border-slate-100 bg-slate-50/70 px-2.5 py-1.5 transition hover:bg-slate-50", className)}>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</p>
+      <div className={cn("mt-0.5 text-xs font-semibold truncate", highlight ? "text-[var(--primary)] font-bold" : "text-slate-800")}>
+        {value}
+      </div>
+    </div>
   );
 }
 
 function BranchStaffDetails({ branches }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Branch, Admin & Staff Details</CardTitle>
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardHeader className="border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+        <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-600">
+          Branch, Admin & Staff Details
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="p-3.5 space-y-3">
         {branches.length ? (
           branches.map((branch) => (
-            <div key={branch.id} className="rounded-md border border-[var(--border)] p-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-semibold">{branch.name}</p>
-                    {branch.isMainBranch ? (
-                      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                        Main branch
-                      </span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    {branch.code} · {branch.address || "Address not set"}
-                  </p>
+            <div key={branch.id} className="rounded-lg border border-slate-200/80 p-3 bg-white shadow-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-xs font-bold text-slate-900">{branch.name}</p>
+                  {branch.isMainBranch ? (
+                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                      Main
+                    </span>
+                  ) : null}
+                  <span className="text-[11px] text-slate-400">({branch.code})</span>
                 </div>
                 <StatusBadge status={branch.status} />
               </div>
-              <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="mt-2 grid grid-cols-4 gap-2">
                 <MiniMetric label="Admins" value={branch.staffCounts?.admins || 0} />
                 <MiniMetric label="Technicians" value={branch.staffCounts?.technicians || 0} />
-                <MiniMetric label="Active staff" value={branch.staffCounts?.active || 0} />
+                <MiniMetric label="Active Staff" value={branch.staffCounts?.active || 0} />
                 <MiniMetric label="Devices" value={branch._count?.tickets || 0} />
               </div>
-              <div className="mt-4 overflow-hidden rounded-md border border-[var(--border)]">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-[var(--muted)]">
+              <div className="mt-2.5 overflow-hidden rounded-lg border border-slate-100">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider">
                     <tr>
-                      <th className="px-3 py-2">Name</th>
-                      <th className="px-3 py-2">Role</th>
-                      <th className="px-3 py-2">Email</th>
-                      <th className="px-3 py-2">Mobile</th>
-                      <th className="px-3 py-2">Status</th>
+                      <th className="px-2.5 py-1.5">Name</th>
+                      <th className="px-2.5 py-1.5">Role</th>
+                      <th className="px-2.5 py-1.5">Email</th>
+                      <th className="px-2.5 py-1.5">Mobile</th>
+                      <th className="px-2.5 py-1.5">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {branch.staff?.length ? (
                       branch.staff.map((member) => (
-                        <tr key={member.id} className="border-t border-[var(--border)]">
-                          <td className="px-3 py-2 font-medium">{member.fullName}</td>
-                          <td className="px-3 py-2">{member.role}</td>
-                          <td className="px-3 py-2">{member.email}</td>
-                          <td className="px-3 py-2">{member.phone || "Not set"}</td>
-                          <td className="px-3 py-2">
+                        <tr key={member.id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                          <td className="px-2.5 py-1.5 font-medium text-slate-900">{member.fullName}</td>
+                          <td className="px-2.5 py-1.5 text-slate-600">{member.role}</td>
+                          <td className="px-2.5 py-1.5 text-slate-500">{member.email}</td>
+                          <td className="px-2.5 py-1.5 text-slate-500">{member.phone || "Not set"}</td>
+                          <td className="px-2.5 py-1.5">
                             <StatusBadge status={member.isActive ? "ACTIVE" : "INACTIVE"} />
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td className="px-3 py-3 text-[var(--muted)]" colSpan={5}>
+                        <td className="px-2.5 py-2 text-slate-400 text-center" colSpan={5}>
                           No staff assigned to this branch.
                         </td>
                       </tr>
@@ -352,7 +642,7 @@ function BranchStaffDetails({ branches }) {
             </div>
           ))
         ) : (
-          <p className="text-sm text-[var(--muted)]">No branches created yet.</p>
+          <p className="text-xs text-slate-400">No branches created yet.</p>
         )}
       </CardContent>
     </Card>
@@ -361,9 +651,9 @@ function BranchStaffDetails({ branches }) {
 
 function MiniMetric({ label, value }) {
   return (
-    <div className="rounded-md border border-[var(--border)] bg-slate-50 p-3">
-      <p className="text-xs font-semibold uppercase text-[var(--muted)]">{label}</p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
+    <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-2 py-1 text-center">
+      <p className="text-[9px] font-bold uppercase text-slate-400">{label}</p>
+      <p className="text-xs font-bold text-slate-800">{value}</p>
     </div>
   );
 }
@@ -432,140 +722,156 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
 
   const audit = subscription?.metadata?.subscriptionAudit || [];
   const history = subscription?.metadata?.subscriptionHistory || audit;
+  const daysLeft = subscription?.daysRemaining;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Subscription Control</CardTitle>
+    <Card className="shadow-sm border border-slate-200/80">
+      <CardHeader className="flex flex-row items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-2.5">
+        <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700">
+          Subscription Control
+        </CardTitle>
+        <span className="text-[11px] font-semibold text-slate-500">
+          Remaining: <span className="font-bold text-slate-800">{daysLeft === null || daysLeft === undefined ? "No expiry" : `${daysLeft} days`}</span>
+        </span>
       </CardHeader>
-      <CardContent>
-        <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
-          <Field label="Plan">
-            <Select value={plan} onChange={(event) => setPlan(event.target.value)}>
-              <option value="STARTER">Starter</option>
-              <option value="GROWTH">Growth</option>
-              <option value="ENTERPRISE">Enterprise</option>
-            </Select>
-          </Field>
-          <Field label="Status">
-            <Select value={status} onChange={(event) => setStatus(event.target.value)}>
-              <option value="NOT_SELECTED">Not selected</option>
-              <option value="PENDING">Pending</option>
-              <option value="DONE">Done</option>
-              <option value="ACTIVE">Active</option>
-              <option value="TRIALING">{approvalRequested ? "Trialing (approval requested)" : "Trialing"}</option>
-              <option value="EXPIRED">Expired</option>
-              <option value="SUSPENDED">Suspended</option>
-              <option value="CANCELLED">Cancelled</option>
-            </Select>
-          </Field>
-          <Field label="Start date">
-            <Input type="date" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
-          </Field>
-          <Field label="Expiry date">
-            <Input type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
-          </Field>
-          <Field label="Add days">
-            <Input
-              min="1"
-              max="3650"
-              type="number"
-              value={addDays}
-              onChange={(event) => setAddDays(event.target.value)}
-              placeholder="Example: 30"
-            />
-          </Field>
-          <Field label="Activation reason">
-            <Select value={activationReason} onChange={(event) => setActivationReason(event.target.value)}>
-              <option value="Manual Payment Verified">Manual Payment Verified</option>
-              <option value="UPI Payment">UPI Payment</option>
-              <option value="Renewal">Renewal</option>
-              <option value="Extension">Extension</option>
-              <option value="Trial Upgrade">Trial Upgrade</option>
-            </Select>
-          </Field>
-          <Field label="Internal note">
-            <Input
-              value={internalNote}
-              onChange={(event) => setInternalNote(event.target.value)}
-              placeholder="Example: Customer paid ₹499, invoice shared"
-            />
-          </Field>
-          <div className="rounded-md border border-[var(--border)] p-4">
-            <p className="text-xs font-semibold uppercase text-[var(--muted)]">Remaining</p>
-            <p className="mt-2 text-sm font-medium">
-              {subscription?.daysRemaining === null || subscription?.daysRemaining === undefined
-                ? "No expiry set"
-                : `${subscription.daysRemaining} days`}
-            </p>
-          </div>
-          {request ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-4 md:col-span-2">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+      <CardContent className="p-3.5 space-y-3">
+        {/* Compact Owner Activation Request Banner */}
+        {request ? (
+          <div className="rounded-xl border border-amber-200 bg-[linear-gradient(135deg,#fffdf5,#fef3c7)] p-3 shadow-xs">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
                 <div>
-                  <p className="text-xs font-semibold uppercase text-amber-800">Owner activation request</p>
-                  <p className="mt-1 text-xs font-medium text-amber-900">
-                    The trial is already running. Approve this request to activate the selected subscription plan.
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold uppercase text-amber-950 tracking-wider">
+                      Activation Request
+                    </span>
+                    <span className="font-mono text-[11px] font-bold bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded">
+                      {request.paymentRequestId || request.id || "REQ"}
+                    </span>
+                    <StatusBadge status={request.status || "REQUESTED"} />
+                  </div>
+                  <p className="mt-0.5 text-xs text-amber-800 font-medium">
+                    {request.serviceName} · {request.durationDays} days · <span className="font-bold">{formatCurrency(request.price)}</span>
+                    <span className="text-amber-700/70 ml-2">({formatAuditDate(request.requestedAt)})</span>
                   </p>
                 </div>
-                <StatusBadge status={request.status || "REQUESTED"} />
               </div>
-              <p className="mt-2 text-sm font-bold">{request.paymentRequestId || request.id || "Request ID missing"}</p>
-              <p className="mt-2 text-sm font-medium">
-                {request.serviceName} · {request.durationDays} days · {formatCurrency(request.price)}
-              </p>
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                {request.provider || "MANUAL_WHATSAPP"} · {request.status || "REQUESTED"} · requested {formatAuditDate(request.requestedAt)}
-              </p>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSaving}
+                onClick={handleActivate}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-xs shadow-xs"
+              >
+                {isSaving ? "Activating..." : "Approve & Activate Now"}
+              </Button>
             </div>
-          ) : null}
-          <div className="flex flex-wrap gap-2 md:col-span-2">
-            <Button type="button" disabled={isSaving} onClick={handleActivate}>
-              {isSaving ? "Activating..." : approvalRequested ? "Approve Request & Activate" : "Activate Subscription"}
-            </Button>
-            <Button type="submit" disabled={isSaving}>
+          </div>
+        ) : null}
+
+        {/* Compact 4-Column Form */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Plan</span>}>
+              <Select className="h-8.5 text-xs py-1" value={plan} onChange={(event) => setPlan(event.target.value)}>
+                <option value="STARTER">Starter</option>
+                <option value="GROWTH">Growth</option>
+                <option value="ENTERPRISE">Enterprise</option>
+              </Select>
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Status</span>}>
+              <Select className="h-8.5 text-xs py-1" value={status} onChange={(event) => setStatus(event.target.value)}>
+                <option value="NOT_SELECTED">Not selected</option>
+                <option value="PENDING">Pending</option>
+                <option value="DONE">Done</option>
+                <option value="ACTIVE">Active</option>
+                <option value="TRIALING">{approvalRequested ? "Trialing (Req)" : "Trialing"}</option>
+                <option value="EXPIRED">Expired</option>
+                <option value="SUSPENDED">Suspended</option>
+                <option value="CANCELLED">Cancelled</option>
+              </Select>
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Activation Reason</span>}>
+              <Select className="h-8.5 text-xs py-1" value={activationReason} onChange={(event) => setActivationReason(event.target.value)}>
+                <option value="Manual Payment Verified">Manual Payment Verified</option>
+                <option value="UPI Payment">UPI Payment</option>
+                <option value="Renewal">Renewal</option>
+                <option value="Extension">Extension</option>
+                <option value="Trial Upgrade">Trial Upgrade</option>
+              </Select>
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Add Days</span>}>
+              <Input
+                className="h-8.5 text-xs py-1"
+                min="1"
+                max="3650"
+                type="number"
+                value={addDays}
+                onChange={(event) => setAddDays(event.target.value)}
+                placeholder="Days (e.g. 30)"
+              />
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Start Date</span>}>
+              <Input className="h-8.5 text-xs py-1" type="date" value={startsAt} onChange={(event) => setStartsAt(event.target.value)} />
+            </Field>
+
+            <Field label={<span className="text-[11px] font-semibold text-slate-600">Expiry Date</span>}>
+              <Input className="h-8.5 text-xs py-1" type="date" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
+            </Field>
+
+            <Field className="sm:col-span-2" label={<span className="text-[11px] font-semibold text-slate-600">Internal Note</span>}>
+              <Input
+                className="h-8.5 text-xs py-1"
+                value={internalNote}
+                onChange={(event) => setInternalNote(event.target.value)}
+                placeholder="Internal verification note (e.g. Paid ₹499 via UPI)"
+              />
+            </Field>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <Button type="submit" size="sm" variant="secondary" className="h-8.5 text-xs" disabled={isSaving}>
               {isSaving ? "Saving..." : "Save Subscription"}
+            </Button>
+            <Button type="button" size="sm" className="h-8.5 text-xs" disabled={isSaving} onClick={handleActivate}>
+              {isSaving ? "Activating..." : approvalRequested ? "Approve Request & Activate" : "Activate Subscription"}
             </Button>
           </div>
         </form>
-        <div className="mt-5 rounded-md border border-[var(--border)] bg-slate-50 p-4">
-          <p className="text-xs font-semibold uppercase text-[var(--muted)]">Activation / Renewal Audit</p>
+
+        {/* Compact Audit History */}
+        <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+            Activation / Renewal Audit ({history.length})
+          </p>
           {history.length ? (
-            <div className="mt-3 space-y-2">
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
               {history.slice().reverse().map((entry, index) => (
-                <div key={`${entry.at}-${index}`} className="rounded-md border border-[var(--border)] bg-white p-3 text-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-semibold">{entry.action || "UPDATED"} · {entry.plan || "No plan"} · {entry.status || "No status"}</p>
-                    <p className="text-xs text-[var(--muted)]">{formatAuditDate(entry.at)}</p>
+                <div key={`${entry.at}-${index}`} className="rounded-md border border-slate-100 bg-white px-2.5 py-1.5 text-xs shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <span className="font-semibold text-slate-800">
+                      {entry.action || "UPDATED"} · <span className="font-bold text-[var(--primary)]">{entry.plan || "No plan"}</span> · {entry.status}
+                    </span>
+                    <span className="text-[10px] text-slate-400">{formatAuditDate(entry.at)}</span>
                   </div>
-                  <p className="mt-1 text-xs text-[var(--muted)]">
-                    Provider: {entry.provider || "MANUAL_WHATSAPP"}
-                    {entry.reason ? ` · Reason: ${entry.reason}` : ""}
-                    {entry.addDays ? ` · Extended ${entry.addDays} days` : ""}
-                    {entry.expiresAt ? ` · Expires ${formatAuditDate(entry.expiresAt)}` : ""}
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {entry.reason ? `Reason: ${entry.reason}` : ""}
+                    {entry.addDays ? ` · Extended ${entry.addDays}d` : ""}
+                    {entry.internalNote ? ` · Note: "${entry.internalNote}"` : ""}
                   </p>
-                  {entry.internalNote ? (
-                    <p className="mt-2 rounded bg-slate-50 px-2 py-1 text-xs text-slate-700">
-                      Internal note: {entry.internalNote}
-                    </p>
-                  ) : null}
                 </div>
               ))}
             </div>
           ) : (
-            <p className="mt-2 text-sm text-[var(--muted)]">No activation or renewal audit yet.</p>
+            <p className="text-[11px] text-slate-400">No activation or renewal audit yet.</p>
           )}
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function Info({ label, value }) {
-  return (
-    <div className="rounded-md border border-[var(--border)] p-4">
-      <p className="text-xs font-semibold uppercase text-[var(--muted)]">{label}</p>
-      <div className="mt-2 text-sm font-medium">{value}</div>
-    </div>
   );
 }

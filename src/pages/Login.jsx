@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Button } from "@/components/ui/Button";
+import { ArrowRight, Loader2, LogIn } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Field, Input, PasswordInput } from "@/components/ui/Form";
 import { useAuth } from "@/contexts/AuthContext";
@@ -133,14 +133,33 @@ export function Login() {
               </div>
             ) : null}
 
-            <Button
-              className="w-full h-11 text-xs font-black bg-[linear-gradient(135deg,#2563EB,#0EA5E9)] text-white border-none shadow-lg shadow-blue-500/25 hover:brightness-105 transition-all mt-4 rounded-xl cursor-pointer"
+            <button
+              type="submit"
               disabled={form.formState.isSubmitting}
+              className="group relative w-full h-12 mt-5 overflow-hidden rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 bg-[length:200%_auto] font-medium text-white shadow-lg shadow-blue-500/25 transition-all duration-300 ease-out hover:bg-[position:right_center] hover:shadow-xl hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none disabled:transform-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:ring-offset-2"
             >
-              {form.formState.isSubmitting
-                ? "Signing in..."
-                : "Login to Portal"}
-            </Button>
+              {/* Subtle top-edge glass bevel */}
+              <span className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
+
+              {/* Smooth light sweep sheen on hover */}
+              <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 ease-in-out group-hover:translate-x-full pointer-events-none" />
+
+              {/* Button content */}
+              <span className="relative flex h-full w-full items-center justify-center gap-2.5 px-4 text-sm font-semibold tracking-wide text-white">
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4.5 w-4.5 animate-spin text-white/90" />
+                    <span>Signing in to workspace...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="h-4 w-4 opacity-85 transition-transform duration-300 group-hover:scale-110" />
+                    <span>Login to Portal</span>
+                    <ArrowRight className="h-4 w-4 opacity-80 transition-all duration-300 ease-out group-hover:translate-x-1 group-hover:opacity-100" />
+                  </>
+                )}
+              </span>
+            </button>
 
             <div className="pt-4 border-t border-slate-100 mt-6 space-y-3 text-center">
               <div className="flex items-center justify-between text-xs px-1">

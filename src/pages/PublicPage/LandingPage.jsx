@@ -313,8 +313,8 @@ export function LandingPage() {
     {
       name: "Starter",
       desc: "Perfect for independent repair shops",
-      price: getPlanPrice(99),
-      annualSavings: getAnnualSavings(99),
+      price: getPlanPrice(149),
+      annualSavings: getAnnualSavings(149),
       groups: [
         {
           title: "Operations",
@@ -335,8 +335,8 @@ export function LandingPage() {
     {
       name: "Growth",
       desc: "Best for growing repair businesses",
-      price: getPlanPrice(199),
-      annualSavings: getAnnualSavings(199),
+      price: getPlanPrice(249),
+      annualSavings: getAnnualSavings(249),
       groups: [
         {
           title: "Operations",

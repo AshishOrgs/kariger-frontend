@@ -787,7 +787,7 @@ function SubscriptionAdminForm({ business, isSaving, onSave }) {
                 <option value="PENDING">Pending</option>
                 <option value="DONE">Done</option>
                 <option value="ACTIVE">Active</option>
-                <option value="TRIALING">{approvalRequested ? "Trialing (Req)" : "Trialing"}</option>
+                <option value="TRIALING">{approvalRequested ? "Trial (Req)" : "Trial"}</option>
                 <option value="EXPIRED">Expired</option>
                 <option value="SUSPENDED">Suspended</option>
                 <option value="CANCELLED">Cancelled</option>

@@ -32,11 +32,16 @@ const tones = {
   STORAGE: "bg-slate-100 text-slate-700",
 };
 
+const customLabels = {
+  TRIALING: "Trial",
+};
+
 export function StatusBadge({ status, className }) {
   const value = status || "UNKNOWN";
+  const displayLabel = customLabels[value] || String(value).replaceAll("_", " ");
   return (
     <span className={cn("inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold", tones[value] || "bg-slate-100 text-slate-700", className)}>
-      {String(value).replaceAll("_", " ")}
+      {displayLabel}
     </span>
   );
 }

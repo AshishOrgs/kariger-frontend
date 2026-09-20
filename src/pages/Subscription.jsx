@@ -71,12 +71,20 @@ export function Subscription() {
   const [plan, setPlan] = useState(currentPlanName);
   const [durationDays, setDurationDays] = useState(30);
 
+  useEffect(() => {
+    if (subscription?.plan) {
+      setPlan(subscription.plan);
+    }
+  }, [subscription?.plan]);
+
   const selectedPlan = useMemo(
     () => planOptions.find((option) => option.plan === plan) || planOptions[0],
     [plan, planOptions]
   );
 
-  const price = selectedPlan ? selectedPlan.monthlyPrice * Math.max(1, Math.ceil(durationDays / 30)) : 0;
+  const price = selectedPlan && selectedPlan.monthlyPrice !== null
+    ? selectedPlan.monthlyPrice * Math.max(1, Math.ceil(durationDays / 30))
+    : 0;
   const daysLeft = displaySubscription.daysRemaining;
   const isExpiringSoon = daysLeft !== null && daysLeft <= 7 && daysLeft > 0;
   const isExpired = daysLeft !== null && daysLeft <= 0;
@@ -118,7 +126,7 @@ export function Subscription() {
       <QueryState
         isLoading={subscriptionQuery.isLoading}
         error={subscriptionQuery.error}
-        isEmpty={!subscription}
+        isEmpty={!subscriptionQuery.isLoading && !subscription && planOptions.length === 0}
         emptyTitle="Subscription unavailable"
         onRetry={subscriptionQuery.refetch}
       >
@@ -154,7 +162,7 @@ export function Subscription() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Validity</p>
                     <p className="mt-0.5 text-xl font-black text-white">
                       {daysLeft === null || daysLeft === undefined ? (
-                        "Lifetime"
+                        "—"
                       ) : isExpired ? (
                         <span className="text-rose-400">Expired</span>
                       ) : (
@@ -162,7 +170,11 @@ export function Subscription() {
                       )}
                     </p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
-                      {daysLeft !== null && daysLeft > 0 ? "Remaining" : "Renew now"}
+                      {daysLeft !== null && daysLeft > 0
+                        ? "Remaining"
+                        : isExpired
+                        ? "Renew now"
+                        : "No active period"}
                     </p>
                   </div>
                 </div>
@@ -188,9 +200,15 @@ export function Subscription() {
                         "text-xs font-bold px-2 py-0.5 rounded-full inline-block",
                         displaySubscription.status === "ACTIVE"
                           ? "bg-emerald-50 text-emerald-700"
+                          : displaySubscription.status === "TRIALING"
+                          ? "bg-cyan-50 text-cyan-700"
                           : "bg-amber-50 text-amber-700"
                       )}>
-                        {displaySubscription.status}
+                        {displaySubscription.status === "TRIALING"
+                          ? "Trial"
+                          : displaySubscription.status === "NOT_SELECTED"
+                          ? "Not Selected"
+                          : displaySubscription.status}
                       </span>
                     }
                     detail="Account state"
@@ -295,7 +313,7 @@ export function Subscription() {
               </Field>
 
               {/* Duration Pills / Selector */}
-              {selectedPlan?.monthlyPrice !== null ? (
+              {selectedPlan && selectedPlan.monthlyPrice !== null ? (
                 <Field label={<span className="text-xs font-semibold text-slate-700">Subscription Duration</span>}>
                   <div className="grid grid-cols-2 gap-2">
                     {durationOptions.map((days) => {
@@ -314,7 +332,7 @@ export function Subscription() {
                         >
                           <p className="text-xs font-bold">{DURATION_LABELS[days] || `${days} days`}</p>
                           <p className="text-[10px] text-slate-400 mt-0.5">
-                            {formatCurrency(selectedPlan.monthlyPrice * (days / 30))}
+                            {formatCurrency((selectedPlan.monthlyPrice || 0) * (days / 30))}
                           </p>
                         </button>
                       );
@@ -355,6 +373,8 @@ export function Subscription() {
                   ? "Preparing Request..."
                   : isPendingApproval
                   ? "Re-send WhatsApp Request"
+                  : selectedPlan?.monthlyPrice === null
+                  ? "Request Custom Quote via WhatsApp"
                   : displaySubscription.plan
                   ? `Renew Subscription · ${formatCurrency(price)}`
                   : `Start Subscription · ${formatCurrency(price)}`}
